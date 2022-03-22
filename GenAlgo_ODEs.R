@@ -1,5 +1,5 @@
 library(deSolve)
-setwd("C:/Users/vassi/Documents/LAB/Genetic Algo")
+setwd("C:/Users/vassi/Documents/GitHub/PBPK_Genetic_Algorithm")
 
 dose_kg <- 10 # mg/kg rat body
 mass <- 250 # g  
@@ -312,6 +312,11 @@ ode.func <- function(time, inits, params){
 
 inits <- create.inits(params, dose)
 sample_time <- c(0,1,3,7)*24 # hours
+
+start_time <- Sys.time()
 solution <- ode(times=sample_time, func=ode.func, y=inits, parms=params, 
                 method="bdf", rtol=1e-5, atol=1e-5)
-rowSums(solution[,2:21])
+end_time <- Sys.time()
+#rowSums(solution[,2:21])
+ODEs_solution_duration <- end_time - start_time
+ODEs_solution_duration
