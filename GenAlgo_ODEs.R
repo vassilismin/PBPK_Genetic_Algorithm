@@ -311,7 +311,7 @@ ode.func <- function(time, inits, params){
 }
 
 inits <- create.inits(params, dose)
-sample_time <- c(0,1,3,7)*24 # hours
+sample_time <- c(0,1,3,7, 15, 30)*24 # hours
 
 start_time <- Sys.time()
 solution <- ode(times=sample_time, func=ode.func, y=inits, parms=params, 
