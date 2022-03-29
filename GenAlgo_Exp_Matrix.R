@@ -1,4 +1,4 @@
-library(deSolve)
+library(expm)
 setwd("C:/Users/vassi/Documents/GitHub/PBPK_Genetic_Algorithm")
 
 dose_kg <- 10 # mg/kg rat body
@@ -164,37 +164,6 @@ create.params <- function(comp_names, w){
 
 params<-create.params(compartments,mass)
 
-# variables
-# x1 <- M_ven
-# x2 <- M_art
-
-# Capillaries       | Tissue  
-# x3 <- M_cap_ht    | x4 <- M_ht
-# x5 <- M_cap_lu    | x6 <- M_lu
-# x7 <- M_cap_li    | x8 <- M_li
-# x9 <- M_cap_spl   | x10 <- M_spl
-# x11 <- M_cap_ki   | x12 <- M_ki
-# x13 <- M_cap_git  | x14 <- M_git
-# x15 <- M_cap_bone | x16 <- M_bone
-# x17 <- M_cap_rob  | x18 <- M_rob 
-# x19 <- M_feces    | x20 <- M_urine
-
-# A = matrix(c(
-#     # Venous
-#       -Q_total/V_ven, 0, Q_ht/V_cap_ht, 0, 0, 0, (Q_li+Q_spl)/V_cap_li, 0, 0, 0, Q_ki/V_cap_ki, 0,  Q_git/V_cap_git, 0,  Q_bone/V_cap_bone, 0,   Q_rob/V_cap_rob, 0,
-#     
-#     # Arterial
-#       0, -Q_toal/V_art, 0, 0, Q_total/V_cap_lu, 0, 0,0,0,0,0,0,0,0,0,0,0,0,
-#     
-#     # Heart
-#       # Capillaries
-#       0, Q_ht/V_art, (-Q_ht/V_cap_ht - x_ht*Q_ht/V_cap_ht), x_ht*Q_ht/(w_ht*P_ht),0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-#       # Tissue
-#       0, 0, x_ht*Q_ht/V_cap_ht, -x_ht*Q_ht/(w_ht*P_ht),0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-#     
-#     # Lungs
-# ))
-
 x_gen <- 0.001 # random value - unitless
 P_gen <- 0.001 # random value - unitless
 CLE_f <- 0.001
@@ -217,6 +186,29 @@ P_ki <- P_gen
 P_git <- P_gen 
 P_bone <- P_gen
 P_rob <- P_gen
+
+
+#============================
+#Indexing of state variables
+#============================
+# x1 <- M_ven
+# x2 <- M_art
+
+# Capillaries       | Tissue  
+# x3 <- M_cap_ht    | x4 <- M_ht
+# x5 <- M_cap_lu    | x6 <- M_lu
+# x7 <- M_cap_li    | x8 <- M_li
+# x9 <- M_cap_spl   | x10 <- M_spl
+# x11 <- M_cap_ki   | x12 <- M_ki
+# x13 <- M_cap_git  | x14 <- M_git
+# x15 <- M_cap_bone | x16 <- M_bone
+# x17 <- M_cap_rob  | x18 <- M_rob 
+# x19 <- M_feces    | x20 <- M_urine
+
+# Matrix "A" contains the coefficients of the ODEs system of the PBPK. The ODEs system contains 20 variables, 
+# so the dimensions of matrix A are 20x20. Each row of the matrix represents the differential equation of each 
+# state variable x_i and each column represents the value of the coefficient of each state variable x_j in ODE 
+# of each x_i. The indexing of state variables is analitically presented in the table "Indexing of state variables".
 
 A <- matrix(c(rep(0,20^2)), 
             nrow = 20)
@@ -286,9 +278,4 @@ A[19,14] <- CLE_f
 #Urine
 A[20,12] <- CLE_u
 
-
-
-
 print(A)
-
-
