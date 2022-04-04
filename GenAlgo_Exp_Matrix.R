@@ -142,15 +142,15 @@ create.params <- function(comp_names, w){
   Wm_art=0.01*Vart
   
   return(c(
-    "Q_total"<<-Q_total, "V_blood"<<-Total_Blood, "V_ven"<<-Vven, "V_art"<<-Vart,
+    "Q_total"=Q_total, "V_blood"=Total_Blood, "V_ven"=Vven, "V_art"=Vart,
     
-    "w_rob"<<-parameters[1,1], "w_ht"<<-parameters[2,1], "w_ki"<<-parameters[3,1], "w_spl"<<-parameters[5,1], "w_lu"<<-parameters[6,1], "w_li"<<-parameters[7,1], "w_bone"<<-parameters[9,1], "w_git"<<-parameters[13,1],
+    "w_rob"=parameters[1,1], "w_ht"=parameters[2,1], "w_ki"=parameters[3,1], "w_spl"=parameters[5,1], "w_lu"=parameters[6,1], "w_li"=parameters[7,1], "w_bone"=parameters[9,1], "w_git"=parameters[13,1],
     
-    "V_tis_rob"<<-parameters[1,2], "V_tis_ht"<<-parameters[2,2], "V_tis_ki"<<-parameters[3,2], "V_tis_spl"<<-parameters[5,2], "V_tis_lu"<<-parameters[6,2], "V_tis_li"<<-parameters[7,2], "V_tis_bone"<<-parameters[9,2], "V_tis_git"<<-parameters[13,2], 
+    "V_tis_rob"=parameters[1,2], "V_tis_ht"=parameters[2,2], "V_tis_ki"=parameters[3,2], "V_tis_spl"=parameters[5,2], "V_tis_lu"=parameters[6,2], "V_tis_li"=parameters[7,2], "V_tis_bone"=parameters[9,2], "V_tis_git"=parameters[13,2], 
     
-    "V_cap_rob"<<-parameters[1,3], "V_cap_ht"<<-parameters[2,3], "V_cap_ki"<<-parameters[3,3], "V_cap_spl"<<-parameters[5,3], "V_cap_lu"<<-parameters[6,3], "V_cap_li"<<-parameters[7,3], "V_cap_bone"<<-parameters[9,3], "V_cap_git"<<-parameters[13,3],
+    "V_cap_rob"=parameters[1,3], "V_cap_ht"=parameters[2,3], "V_cap_ki"=parameters[3,3], "V_cap_spl"=parameters[5,3], "V_cap_lu"=parameters[6,3], "V_cap_li"=parameters[7,3], "V_cap_bone"=parameters[9,3], "V_cap_git"=parameters[13,3],
     
-    "Q_rob"<<-parameters[1,4], "Q_ht"<<-parameters[2,4], "Q_ki"<<-parameters[3,4], "Q_spl"<<-parameters[5,4], "Q_lu"<<-parameters[6,4], "Q_li"<<-parameters[7,4], "Q_bone"<<-parameters[9,4], "Q_git"<<-parameters[13,4]
+    "Q_rob"=parameters[1,4], "Q_ht"=parameters[2,4], "Q_ki"=parameters[3,4], "Q_spl"=parameters[5,4], "Q_lu"=parameters[6,4], "Q_li"=parameters[7,4], "Q_bone"=parameters[9,4], "Q_git"=parameters[13,4]
     
   ))
 }
@@ -188,94 +188,155 @@ P_bone <- P_gen
 P_rob <- P_gen
 
 
-#============================
-#Indexing of state variables
-#============================
-# x1 <- M_ven
-# x2 <- M_art
+#--------------------------------------------------------------------------------------------------
+# "create_ODE_matrix()" creates the matrix with the coefficients of the state variables of the 
+# desired ODE system. It takes as input the values of parameters and returns the matrix.
+#--------------------------------------------------------------------------------------------------
+create_ODE_matrix <- function(parameters){
+  with( as.list(parameters),{
+    #============================
+    #Indexing of state variables
+    #============================
+    # x1 <- M_ven
+    # x2 <- M_art
+    
+    # Capillaries       | Tissue  
+    # x3 <- M_cap_ht    | x4 <- M_ht
+    # x5 <- M_cap_lu    | x6 <- M_lu
+    # x7 <- M_cap_li    | x8 <- M_li
+    # x9 <- M_cap_spl   | x10 <- M_spl
+    # x11 <- M_cap_ki   | x12 <- M_ki
+    # x13 <- M_cap_git  | x14 <- M_git
+    # x15 <- M_cap_bone | x16 <- M_bone
+    # x17 <- M_cap_rob  | x18 <- M_rob 
+    # x19 <- M_feces    | x20 <- M_urine
+    
+    # Matrix "A" contains the coefficients of the ODEs system of the PBPK. The ODEs system contains 20 variables, 
+    # so the dimensions of matrix A are 20x20. Each row of the matrix represents the differential equation of each 
+    # state variable x_i and each column represents the value of the coefficient of each state variable x_j in ODE 
+    # of each x_i. The indexing of state variables is analytically presented in the table "Indexing of state variables".
+    
+    A <- matrix(c(rep(0,20^2)), 
+                nrow = 20)
+    rownames(A) <- c("M_ven", "M_art",
+                     "M_cap_ht" ,"M_ht",
+                     "M_cap_lu" ,"M_lu",
+                     "M_cap_li" ,"M_li",
+                     "M_cap_spl" ,"M_spl",
+                     "M_cap_ki" ,"M_ki",
+                     "M_cap_git" ,"M_git",
+                     "M_cap_bone" ,"M_bone",
+                     "M_cap_rob" ,"M_rob", 
+                     "M_feces"  ,"M_urine")
+    colnames(A) <- rownames(A)
+    
+    #Venous
+    A[1,1]<- -Q_total/V_ven; A[1,3]<-Q_ht/V_cap_ht; A[1,7]<-(Q_spl+Q_li)/V_cap_li; A[1,11]<-Q_ki/V_cap_ki; A[1,13]<-Q_git/V_cap_git;
+    A[1,15]<-Q_bone/V_cap_bone; A[1,17]<-Q_rob/V_cap_rob
+    
+    #Arterial
+    A[2,2]<- -Q_total/V_art; A[2,5]<-Q_total/V_cap_lu
+    
+    #Heart - Capillaries
+    A[3,2]<- Q_ht/V_art; A[3,3] <- -Q_ht/V_cap_ht -x_ht*Q_ht/V_cap_ht; A[3,4]<- x_ht*Q_ht/(w_ht*P_ht) 
+    #Heart - Tissue
+    A[4,3]<- x_ht*Q_ht/V_cap_ht; A[4,4] <- - x_ht*Q_ht/(w_ht*P_ht)
+    
+    #Lungs- Capillaries
+    A[5,1] <- Q_total/V_ven; A[5,5] <- -(Q_total/V_cap_lu + x_lu*Q_total/V_cap_lu); A[5,6] <- x_lu*Q_total/(w_lu*P_lu)
+    #Lungs - Tissue
+    A[6,5] <- x_lu*Q_total/V_cap_lu; A[6,6] <- -x_lu*Q_total/(w_lu*P_lu)
+    
+    #Liver - capillaries
+    A[7,2] <- Q_li/V_art; A[7,7]<- -Q_li/V_cap_li - Q_spl/V_cap_li - x_li*Q_li/V_cap_li; 
+    A[7,8] <- x_li*Q_li/(w_li*P_li); A[7,9] <- Q_spl/V_cap_spl
+    #Liver - Tissue
+    A[8,7]<-x_li*Q_li/V_cap_li; A[8,8]<- - x_li*Q_li/(w_li*P_li)
+    
+    #Spleen - Capillaries
+    A[9,2] <- Q_spl/V_art; A[9,9]<- -Q_spl/V_cap_spl - x_spl*Q_spl/V_cap_spl; A[9,10] <- x_spl*Q_spl/(w_spl*P_spl)
+    #Spleen - Tissue
+    A[10,9] <- x_spl*Q_spl/V_cap_spl; A[10,10]<- -x_spl*Q_spl/(w_spl*P_spl)
+    
+    # Kidneys - Capillaries
+    A[11,2] <- Q_ki/V_art; A[11,11] <- -Q_ki/V_cap_ki -x_ki*Q_ki/V_cap_ki; A[11,12] <- x_ki*Q_ki/(w_ki*P_ki)
+    #Kidneys -Tissue
+    A[12,11] <- x_ki*Q_ki/V_cap_ki; A[12,12] <- - x_ki*Q_ki/(w_ki*P_ki) -CLE_u
+    
+    #Git - Capillaries
+    A[13,2] <- Q_git/V_art; A[13,13] <- - Q_git/V_cap_git - x_git*Q_git/V_cap_git; A[13,14] <- x_git*Q_git/(w_git*P_git)
+    #Git - Tissue
+    A[14,13] <- x_git*Q_git/V_cap_git; A[14,14] <- - x_git*Q_git/(w_git*P_git) - CLE_f
+    
+    #Bone - Capillaries
+    A[15,2] <- Q_bone/V_art; A[15,15]<- -Q_bone/V_cap_bone -x_bone*Q_bone/V_cap_bone; A[15,16] <- x_bone*Q_bone/(w_bone*P_bone)
+    #Bone - Tissue
+    A[16,15] <- x_bone*Q_bone/V_cap_bone; A[16,16] <- - x_bone*Q_bone/(w_bone*P_bone)
+    
+    #RoB - Capillaries
+    A[17,2] <- Q_rob/V_art; A[17,17] <- - Q_rob/V_cap_rob - x_rob*Q_rob/V_cap_rob; A[17,18] <- x_rob*Q_rob/(w_rob*P_rob)
+    #RoB - Tissue
+    A[18,17] <- x_rob*Q_rob/V_cap_rob; A[18,18] <- - x_rob*Q_rob/(w_rob*P_rob)
+    
+    #Feces 
+    A[19,14] <- CLE_f
+    
+    #Urine
+    A[20,12] <- CLE_u
+    
+    return(A)
+  })
+}
 
-# Capillaries       | Tissue  
-# x3 <- M_cap_ht    | x4 <- M_ht
-# x5 <- M_cap_lu    | x6 <- M_lu
-# x7 <- M_cap_li    | x8 <- M_li
-# x9 <- M_cap_spl   | x10 <- M_spl
-# x11 <- M_cap_ki   | x12 <- M_ki
-# x13 <- M_cap_git  | x14 <- M_git
-# x15 <- M_cap_bone | x16 <- M_bone
-# x17 <- M_cap_rob  | x18 <- M_rob 
-# x19 <- M_feces    | x20 <- M_urine
+A <- create_ODE_matrix(params)
 
-# Matrix "A" contains the coefficients of the ODEs system of the PBPK. The ODEs system contains 20 variables, 
-# so the dimensions of matrix A are 20x20. Each row of the matrix represents the differential equation of each 
-# state variable x_i and each column represents the value of the coefficient of each state variable x_j in ODE 
-# of each x_i. The indexing of state variables is analitically presented in the table "Indexing of state variables".
+y_init <- c(dose, rep(0,19))
 
-A <- matrix(c(rep(0,20^2)), 
-            nrow = 20)
-rownames(A) <- c("M_ven", "M_art",
-                 "M_cap_ht" ,"M_ht",
-                 "M_cap_lu" ,"M_lu",
-                 "M_cap_li" ,"M_li",
-                 "M_cap_spl" ,"M_spl",
-                 "M_cap_ki" ,"M_ki",
-                 "M_cap_git" ,"M_git",
-                 "M_cap_bone" ,"M_bone",
-                 "M_cap_rob" ,"M_rob", 
-                 "M_feces"  ,"M_urine")
-colnames(A) <- rownames(A)
+sample_time <- c(0,1,3,7, 15, 30)*24 # hours
 
-#Venous
-A[1,1]<- -Q_total/V_ven; A[1,3]<-Q_ht/V_cap_ht; A[1,7]<-(Q_spl+Q_li)/V_cap_li; A[1,11]<-Q_ki/V_cap_ki; A[1,13]<-Q_git/V_cap_git; A[1,15]<-Q_bone/V_cap_bone;
-A[1,17]<-Q_rob/V_cap_rob
 
-#Arterial
-A[2,2]<- -Q_total/V_art; A[2,5]<-Q_total/V_cap_lu
+#--------------------------------------------------------------------------------------------------
+# "Solve_exp_matrix()" is a function that solves the ODE system using the matrix "x" (which 
+# contains the coefficients of the system), "time" which is the desired time points to 
+# be calculated and "y_init" is the initial values of the state variables.
+#--------------------------------------------------------------------------------------------------
 
-#Heart - Capillaries
-A[3,2]<- Q_ht/V_art; A[3,3] <- -Q_ht/V_cap_ht -x_ht*Q_ht/V_cap_ht; A[3,4]<- x_ht*Q_ht/(w_ht*P_ht) 
-#Heart - Tissue
-A[4,3]<- x_ht*Q_ht/V_cap_ht; A[4,4] <- - x_ht*Q_ht/(w_ht*P_ht)
+Solve_exp_matrix <- function(x, time, y_init){
+  
+  if(!is.matrix(x)){
+    stop("x must be a NxN matrix")
+  }
+  
+  if(!is.numeric(y_init)){
+    stop("y_init must be a numeric vector")
+  }
+  
+  if(dim(x)[1] != dim(x)[2]){
+    stop("Matrix x must be NxN")
+  }
+  
+  if(dim(x)[1] != length(y_init)){
+    stop("Dimension of y_init must be equal to dimension of matrix x")
+  }
+  
+  
+  y_t  <- matrix(data=NA, nrow = nrow(x), ncol = length(time))
+  colnames(y_t) <- as.character(time)
+  
+  y_t[,1] <- y_init
+  for (t in 2:length(time)) {
+    solution_t <- expm(x*time[t])%*%y_init
+    y_t[,t] <- solution_t
+  }
+  rownames(y_t) <- rownames(A)
+  return(t(y_t))
+}
 
-#Lungs- Capillaries
-A[5,1] <- Q_total/V_ven; A[5,5] <- -(Q_total/V_cap_lu + x_lu*Q_total/V_cap_lu); A[5,6] <- x_lu*Q_total/(w_lu*P_lu)
-#Lungs - Tissue
-A[6,5] <- x_lu*Q_total/V_cap_lu; A[6,6] <- -x_lu*Q_total/(w_lu*P_lu)
+start_time <- Sys.time()
+solution <-  Solve_exp_matrix(x = A, time = sample_time, y_init = y_init)
+end_time <- Sys.time()
 
-#Liver - capillaries
-A[7,2] <- Q_li/V_art; A[7,7]<- -Q_li/V_cap_li - Q_spl/V_cap_li - x_li*Q_li/V_cap_li; 
-A[7,8] <- x_li*Q_li/(w_li*P_li); A[7,9] <- Q_spl/V_cap_spl
-#Liver - Tissue
-A[8,7]<-x_li*Q_li/V_cap_li; A[8,8]<- - x_li*Q_li/(w_li*P_li)
+#rowSums(solution[,2:21])
+Matrix_solution_duration <- end_time - start_time
+Matrix_solution_duration
 
-#Spleen - Capillaries
-A[9,2] <- Q_spl/V_art; A[9,9]<- -Q_spl/V_cap_spl - x_spl*Q_spl/V_cap_spl; A[9,10] <- x_spl*Q_spl/(w_spl*P_spl)
-#Spleen - Tissue
-A[10,9] <- x_spl*Q_spl/V_cap_spl; A[10,10]<- -x_spl*Q_spl/(w_spl*P_spl)
-
-# Kidneys - Capillaries
-A[11,2] <- Q_ki/V_art; A[11,11] <- -Q_ki/V_cap_ki -x_ki*Q_ki/V_cap_ki; A[11,12] <- x_ki*Q_ki/(w_ki*P_ki)
-#Kidneys -Tissue
-A[12,11] <- x_ki*Q_ki/V_cap_ki; A[12,12] <- x_ki*Q_ki/(w_ki/P_ki) -CLE_u
-
-#Git - Capillaries
-A[13,2] <- Q_git/V_cap_git; A[13,13] <- - x_git*Q_git/V_cap_git; A[13,14] <- x_git*Q_git/(w_git*P_git)
-#Git - Tissue
-A[14,13] <- x_git*Q_git/V_cap_git; A[14,14] <- - x_git*Q_git/(w_git*P_git) - CLE_f
-
-#Bone - Capillaries
-A[15,2] <- Q_bone/V_cap_bone; A[15,15]<- -Q_bone/V_cap_bone -x_bone*Q_bone/V_cap_bone; A[15,16] <- x_bone*Q_bone/(w_bone*P_bone)
-#Bone - Tissue
-A[16,15] <- x_bone*Q_bone/V_cap_bone; A[16,16] <- - x_bone*Q_bone/(w_bone*P_bone)
-
-#RoB - Capillaries
-A[17,2] <- Q_rob/(V_cap_rob); A[17,17] <- - Q_rob/V_cap_rob - x_rob*Q_rob/V_cap_rob; A[17,18] <- x_rob*Q_rob/(w_rob*P_rob)
-#RoB - Tissue
-A[18,17] <- x_rob*Q_rob/V_cap_rob; A[18,18] <- - x_rob*Q_rob/(w_rob*P_rob)
-
-#Feces 
-A[19,14] <- CLE_f
-
-#Urine
-A[20,12] <- CLE_u
-
-print(A)
