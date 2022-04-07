@@ -8,14 +8,21 @@ dose <- dose_kg*mass/1000 # mg TiO2
 # Load raw data from paper Xie et al.2011
 df <- openxlsx::read.xlsx("TiO2_iv_rat.xlsx", sheet = 1, colNames = T, rowNames = T) # TiO2 NPs %ID/g of tissue  (Table 1)
 excretion <- openxlsx::read.xlsx("Cummulative_Excretion.xlsx", sheet = 1, colNames = T, rowNames = F) # accumulated excretory rate, expressed as %ID
+excretion_time <- round(excretion[,1])*24 # hours
 excretion <- excretion[,c(2:3)]
 
 # Transform to (mg of NPs)/(g of tissue)
 df <- (df/100)*dose
+df$Intestine <- df$Intestine +df$Stomach
+colnames(df)[which(names(df)=="Intestine")] <- "Git"
+df <- subset(df, select = -c(Stomach, Brain))
+
+df[5,1] <- 1e-05
+
 excretion <- (excretion/100)*dose
 
 ####################################################################
-###################             DATA             ###################
+###################     Physiological Data      ###################
 ####################################################################
 
 
@@ -162,36 +169,15 @@ create.params <- function(comp_names, w){
 # V_cap_i (ml):                volume of capillary blood in tissue "i"
 # Q_i, Q_total (ml/h):        regional blood flow of tissue or organ "i"
 
-params<-create.params(compartments,mass)
 
-x_gen <- 0.001 # random value - unitless
-P_gen <- 0.001 # random value - unitless
-CLE_f <- 0.001
-CLE_u <- 0.001
 
-x_ht <- x_gen
-x_lu <- x_gen
-x_li <- x_gen
-x_spl <- x_gen
-x_ki <- x_gen
-x_git <- x_gen 
-x_bone <- x_gen
-x_rob <- x_gen
-
-P_ht <- P_gen
-P_lu <- P_gen
-P_li <- P_gen
-P_spl <- P_gen
-P_ki <- P_gen
-P_git <- P_gen 
-P_bone <- P_gen
-P_rob <- P_gen
 
 
 #--------------------------------------------------------------------------------------------------
 # "create_ODE_matrix()" creates the matrix with the coefficients of the state variables of the 
 # desired ODE system. It takes as input the values of parameters and returns the matrix.
 #--------------------------------------------------------------------------------------------------
+
 create_ODE_matrix <- function(parameters){
   with( as.list(parameters),{
     #============================
@@ -215,6 +201,12 @@ create_ODE_matrix <- function(parameters){
     # so the dimensions of matrix A are 20x20. Each row of the matrix represents the differential equation of each 
     # state variable x_i and each column represents the value of the coefficient of each state variable x_j in ODE 
     # of each x_i. The indexing of state variables is analytically presented in the table "Indexing of state variables".
+    
+    x_ht <- x_gen;x_lu <- x_gen; x_li <- x_gen; x_spl <- x_gen; x_ki <- x_gen
+    x_git <- x_gen ; x_bone <- x_gen; x_rob <- x_gen
+    
+    P_ht <- P_gen; P_lu <- P_gen; P_li <- P_gen; P_spl <- P_gen
+    P_ki <- P_gen; P_git <- P_gen ; P_bone <- P_gen; P_rob <- P_gen
     
     A <- matrix(c(rep(0,20^2)), 
                 nrow = 20)
@@ -288,53 +280,184 @@ create_ODE_matrix <- function(parameters){
   })
 }
 
-A <- create_ODE_matrix(params)
-
-y_init <- c(dose, rep(0,19))
-
-sample_time <- c(0,1,3,7, 15, 30)*24 # hours
-
-
 #--------------------------------------------------------------------------------------------------
 # "Solve_exp_matrix()" is a function that solves the ODE system using the matrix "x" (which 
 # contains the coefficients of the system), "time" which is the desired time points to 
 # be calculated and "y_init" is the initial values of the state variables.
 #--------------------------------------------------------------------------------------------------
 
-Solve_exp_matrix <- function(x, time, y_init){
-  
-  if(!is.matrix(x)){
-    stop("x must be a NxN matrix")
-  }
-  
-  if(!is.numeric(y_init)){
-    stop("y_init must be a numeric vector")
-  }
-  
-  if(dim(x)[1] != dim(x)[2]){
-    stop("Matrix x must be NxN")
-  }
-  
-  if(dim(x)[1] != length(y_init)){
-    stop("Dimension of y_init must be equal to dimension of matrix x")
-  }
-  
-  
-  y_t  <- matrix(data=NA, nrow = nrow(x), ncol = length(time))
-  colnames(y_t) <- as.character(time)
-  
-  y_t[,1] <- y_init
-  for (t in 2:length(time)) {
-    solution_t <- expm(x*time[t])%*%y_init
-    y_t[,t] <- solution_t
-  }
-  rownames(y_t) <- rownames(A)
-  return(t(y_t))
+Solve_exp_matrix <- function(x, time, y_init, parameters){
+  with(as.list(parameters),{
+    if(!is.matrix(x)){
+      stop("x must be a NxN matrix")
+    }
+    
+    if(!is.numeric(y_init)){
+      stop("y_init must be a numeric vector")
+    }
+    
+    if(dim(x)[1] != dim(x)[2]){
+      stop("Matrix x must be NxN")
+    }
+    
+    if(dim(x)[1] != length(y_init)){
+      stop("Dimension of y_init must be equal to dimension of matrix x")
+    }
+    
+    
+    y_t  <- matrix(data=NA, nrow = nrow(x), ncol = length(time))
+    colnames(y_t) <- as.character(time)
+    
+    y_t[,1] <- y_init
+    for (t in 2:length(time)) {
+      solution_t <- expm(x*time[t])%*%y_init
+      y_t[,t] <- solution_t
+    }
+    rownames(y_t) <- rownames(x)
+    
+    y_t <- data.frame(t(y_t))
+    
+    # Transform TiO2 masses to concentrations
+    concentrations <- cbind(time,
+                           (y_t$M_ven + y_t$M_art)/V_blood,
+                            y_t$M_ht/w_ht,
+                            y_t$M_lu/w_lu,
+                            y_t$M_li/w_li,
+                            y_t$M_spl/w_spl,
+                            y_t$M_ki/w_ki,
+                            y_t$M_git/w_git,
+                            y_t$M_bone/w_bone,
+                            y_t$M_feces,
+                            y_t$M_urine)
+    colnames(concentrations) <- c("Time","C_blood", "C_ht", "C_lu", "C_li",
+                               "C_spl", "C_ki", "C_git", "C_bone", "Feces", "Urine")
+    
+    #return(list(y_t, concentrations))
+    return(data.frame(concentrations))
+  })
 }
 
-start_time <- Sys.time()
-solution <-  Solve_exp_matrix(x = A, time = sample_time, y_init = y_init)
-end_time <- Sys.time()
+#===============
+#4. PBPK INDEX  
+#===============
 
-Matrix_solution_duration <- end_time - start_time
-Matrix_solution_duration
+############# Calculate PBPK indices #############
+# pbpk.index a function the returns the compartment and consolidated (Total) discrepancy index
+# of a PBPK model, given some experimental data. It follows the paper of Krishnan et al.1995.
+# observed: list of vectors containing the experimental data
+# predictions: list of vectors containing the predicted data
+# names of the compartments
+
+pbpk.index <- function(observed, predicted, comp.names =NULL){
+  # Check if the user provided the correct input format
+  if (!is.list(observed) || !is.list(predicted)){
+    stop(" The observations and predictions must be lists")
+  }
+  # Check if the user provided equal length lists
+  if (length(observed) != length(predicted)){
+    stop(" The observations and predictions must have the same compartments")
+  }
+  Ncomp <- length(observed) # Number of compartments
+  I <- rep(NA, Ncomp) # Compartment discrepancy index
+  N_obs <- rep(NA, Ncomp) #Number of observations per compartment
+  #loop over the compartments
+  for (i in 1:Ncomp){
+    et <- 0 # errors
+    Et <-0  # experimental
+    St <- 0  # simulated
+    N <- length(observed[[i]]) # number of observations for compartment i
+    # Check if observations and predictions have equal length
+    if(N != length(predicted[[i]])){
+      stop(paste0("Compartment ",i," had different length in the observations and predictions"))
+    }
+    N_obs[i] <- N # populate tne N_obs vector
+    for (j in 1:N){
+      # sum of absolute squared errors (error = observed - predicted)
+      et <- et + (abs(observed[[i]][j] - predicted[[i]][j]))^2
+      # Sum of squared observed values
+      Et <- Et + (observed[[i]][j])^2
+      St <- St +  (predicted[[i]][j])^2
+    }
+    # root mean square of the absolute error
+    RMet2 <-sqrt(et/N)
+    # root mean of the square of observed values
+    RMEt2 <- sqrt(Et/N)
+    # root mean of the square of simulated values
+    RMSt2 <- sqrt(St/N)
+    
+    I[i] <- ( (RMet2/RMEt2) + (RMet2/RMSt2))/2   
+  }
+  # Total number of observations
+  Ntot <- sum(N_obs)
+  # Initialise the consolidated discrepancy index
+  Ic <-0
+  for (i in 1:Ncomp){
+    Ic <- Ic +  I[i]* N_obs[i]/Ntot
+  }
+  # Name the list of compartment discrepancy indices
+  if ( !is.null(comp.names)){
+    names(I) <- comp.names
+  }else if (!is.null(names(observed))){
+    names(I) <- names(observed)
+  } else if (!is.null(names(predicted)) && is.null(comp.names) ){
+    names(I) <- names(predicted)
+  }
+  return(Ic)
+  #return(list(Total_index = Ic, Compartment_index= I))
+}
+
+
+
+#======================
+#5. Objective function  
+#======================
+
+obj.func <- function(x){
+  params <- c(physiological_params, exp(x))
+  A <- create_ODE_matrix(params)
+  
+  solution <-  Solve_exp_matrix(x = A, time = sample_time, y_init = y_init, parameters = params)
+  
+  concentrations <- solution[solution$Time %in% time_points, 2:(dim(solution)[2]-2)]
+  excr_solution <-  data.frame(solution$Time, solution$Feces, solution$Urine)
+  excr_solution <- excr_solution[solution$Time %in% excretion_time_points, c(2:3)]
+  
+  observed <- list()
+  predicted <- list()
+  
+  for (i in 1:(length(concentrations))) {
+    observed[[i]] <- df[,i]
+    predicted[[i]] <- concentrations[,i]
+  }
+  observed[[i+1]] <- excretion[,1] #feces
+  observed[[i+2]] <- excretion[,2] #urine
+  predicted[[i+1]] <- excr_solution[,1] #feces
+  predicted[[i+2]] <- excr_solution[,2] #urine
+  
+  discrepancy <- pbpk.index(observed, predicted)
+  
+  return(discrepancy)
+}
+
+
+#==============================
+# Nelder - Mead optimization
+#==============================
+set.seed(0)
+x0 <- log(runif(4, 1e-05,10))
+names(x0) <- c("x_gen", "P_gen", "CLE_f", "CLE_u")
+y_init <- c(dose, rep(0,19))
+time_points <- c(1,3,7, 15, 30)*24 # hours
+excretion_time_points <- excretion_time
+sample_time <- seq(0, 30*24, 1)
+physiological_params<-create.params(compartments,mass)
+
+
+start_time <- Sys.time()
+optimization <- optim(par = x0, fn = obj.func, method = c("Nelder-Mead"),
+                      control = list(trace=1, maxit=2000))
+end_time <- Sys.time()
+ODEs_solution_duration <- end_time - start_time
+ODEs_solution_duration
+
+#x_optimum <- exp(unlist(optimization["par"]))
