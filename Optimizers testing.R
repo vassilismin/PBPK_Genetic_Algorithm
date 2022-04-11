@@ -416,6 +416,7 @@ pbpk.index <- function(observed, predicted, comp.names =NULL){
 
 obj.func <- function(x){
   names(x) <- names(x0)
+  #params <- c(physiological_params, x)
   params <- c(physiological_params, exp(x))
   A <- create_ODE_matrix(params)
   
@@ -462,7 +463,7 @@ names(x0) <- c("x_gen", "P_ht", "P_lu", "P_li", "P_spl",
                "CLE_f", "CLE_u")
 start_time <- Sys.time()
 nm_default_optimization <- optim(par = x0, fn = obj.func, method = c("Nelder-Mead"),
-                        control = list(trace=1, maxit=1000))
+                        control = list(trace=1, maxit=2000, abstol = 0.31))
 end_time <- Sys.time()
 nm_default <- end_time - start_time
 
@@ -473,8 +474,8 @@ names(x0) <- c("x_gen", "P_ht", "P_lu", "P_li", "P_spl",
                "P_ki", "P_git", "P_bone", "P_rob",
                "CLE_f", "CLE_u")
 start_time <- Sys.time()
-bgfs_optimization <- optimx(par = x0, fn = obj.func, method = c("BFGS"),
-                           control = list(trace=1, maxit=200))
+bgfs_optimization <- optim(par = x0, fn = obj.func, method = c("BFGS"),
+                           control = list(trace=1, maxit=100, abstol = 0.31), hessian = FALSE)
 end_time <- Sys.time()
 bfgs_time <- end_time - start_time
 
@@ -485,8 +486,8 @@ names(x0) <- c("x_gen", "P_ht", "P_lu", "P_li", "P_spl",
                "P_ki", "P_git", "P_bone", "P_rob",
                "CLE_f", "CLE_u")
 start_time <- Sys.time()
-L_bfgs_B_optimization <- optimx(par = x0, fn = obj.func, method = c("BFGS"),
-                            control = list(trace=1, maxit=200))
+L_bfgs_B_optimization <- optim(par = x0, fn = obj.func, method = c("L-BFGS-B"),
+                            control = list(trace=1, maxit=100, pgtol = 0.31))
 end_time <- Sys.time()
 L_bfgs_B_time <- end_time - start_time
 
@@ -497,19 +498,33 @@ names(x0) <- c("x_gen", "P_ht", "P_lu", "P_li", "P_spl",
                "P_ki", "P_git", "P_bone", "P_rob",
                "CLE_f", "CLE_u")
 start_time <- Sys.time()
-CG_optimization <- optimx(par = x0, fn = obj.func, method = c("CG"),
-                            control = list(trace=1, maxit=200))
+CG_optimization <- optim(par = x0, fn = obj.func, method = c("CG"),
+                            control = list(trace=1, maxit=100, abstol = 0.31))
 end_time <- Sys.time()
 CG_time <- end_time - start_time
 
-# 
-# # from difoptim package
-# set.seed(0)
-# x0 <- runif(4)
-# names(x0) <- c("x_gen", "P_gen", "CLE_f", "CLE_u")
-# start_time <- Sys.time()
-# nm_optimizer <- nmkb(par = x0, fn = obj.func, lower = 0, upper = 10000,
-#                     control = list(trace=TRUE, maxfeval=1000))
-# end_time <- Sys.time()
-# ODEs_solution_duration <- end_time - start_time
-# ODEs_solution_duration
+# Nelder-Mead from dfoptim package
+set.seed(0)
+x0 <- log(runif(11, 1e-05,10))
+names(x0) <- c("x_gen", "P_ht", "P_lu", "P_li", "P_spl",
+               "P_ki", "P_git", "P_bone", "P_rob",
+               "CLE_f", "CLE_u")
+start_time <- Sys.time()
+nm_optimizer <- nmk(par = x0, fn = obj.func,
+                    control = list(maxfeval=2000, trace=TRUE))
+end_time <- Sys.time()
+nm_optimization <- end_time - start_time 
+
+
+# Nelder-Mead from dfoptim package - BOUNDED
+set.seed(0)
+x0 <- runif(11, 1e-05,10)
+
+names(x0) <- c("x_gen", "P_ht", "P_lu", "P_li", "P_spl",
+               "P_ki", "P_git", "P_bone", "P_rob",
+               "CLE_f", "CLE_u")
+start_time <- Sys.time()
+nm_optimizer_bounded <- nmkb(par = x0, fn = obj.func, lower = 0, upper = 1000,
+                    control = list(tol = 0.001, trace=TRUE))
+end_time <- Sys.time()
+nm_optimization_bounded <- end_time - start_time 
