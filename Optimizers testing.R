@@ -1,4 +1,6 @@
 library(expm)
+library(optimx)
+library(dfoptim) 
 setwd("C:/Users/vassi/Documents/GitHub/PBPK_Genetic_Algorithm")
 
 dose_kg <- 10 # mg/kg rat body
@@ -205,8 +207,8 @@ create_ODE_matrix <- function(parameters){
     x_ht <- x_gen;x_lu <- x_gen; x_li <- x_gen; x_spl <- x_gen; x_ki <- x_gen
     x_git <- x_gen ; x_bone <- x_gen; x_rob <- x_gen
     
-    P_ht <- P_gen; P_lu <- P_gen; P_li <- P_gen; P_spl <- P_gen
-    P_ki <- P_gen; P_git <- P_gen ; P_bone <- P_gen; P_rob <- P_gen
+    P_ht <- P_ht; P_lu <- P_lu; P_li <- P_li; P_spl <- P_spl
+    P_ki <- P_ki; P_git <- P_git ; P_bone <- P_bone; P_rob <- P_rob
     
     A <- matrix(c(rep(0,20^2)), 
                 nrow = 20)
@@ -319,7 +321,7 @@ Solve_exp_matrix <- function(x, time, y_init, parameters){
     
     # Transform TiO2 masses to concentrations
     concentrations <- cbind(time,
-                           (y_t$M_ven + y_t$M_art)/V_blood,
+                            (y_t$M_ven + y_t$M_art)/V_blood,
                             y_t$M_ht/w_ht,
                             y_t$M_lu/w_lu,
                             y_t$M_li/w_li,
@@ -330,7 +332,7 @@ Solve_exp_matrix <- function(x, time, y_init, parameters){
                             y_t$M_feces,
                             y_t$M_urine)
     colnames(concentrations) <- c("Time","C_blood", "C_ht", "C_lu", "C_li",
-                               "C_spl", "C_ki", "C_git", "C_bone", "Feces", "Urine")
+                                  "C_spl", "C_ki", "C_git", "C_bone", "Feces", "Urine")
     
     #return(list(y_t, concentrations))
     return(data.frame(concentrations))
@@ -413,6 +415,7 @@ pbpk.index <- function(observed, predicted, comp.names =NULL){
 #======================
 
 obj.func <- function(x){
+  names(x) <- names(x0)
   params <- c(physiological_params, exp(x))
   A <- create_ODE_matrix(params)
   
@@ -443,23 +446,70 @@ obj.func <- function(x){
 #==============================
 # Nelder - Mead optimization
 #==============================
-set.seed(0)
-x0 <- log(runif(4, 1e-05,10))
-names(x0) <- c("x_gen", "P_gen", "CLE_f", "CLE_u")
+
 y_init <- c(dose, rep(0,19))
 time_points <- c(1,3,7, 15, 30)*24 # hours
 excretion_time_points <- excretion_time
 sample_time <- seq(0, 30*24, 1)
 physiological_params<-create.params(compartments,mass)
 
-
+# Default optimizers from R
+# Nelder-Mead
+set.seed(0)
+x0 <- log(runif(11, 1e-05,10))
+names(x0) <- c("x_gen", "P_ht", "P_lu", "P_li", "P_spl",
+               "P_ki", "P_git", "P_bone", "P_rob",
+               "CLE_f", "CLE_u")
 start_time <- Sys.time()
-optimization <- optim(par = x0, fn = obj.func, method = c("Nelder-Mead"),
-                      control = list(trace=1, maxit=1000))
-
+nm_default_optimization <- optim(par = x0, fn = obj.func, method = c("Nelder-Mead"),
+                        control = list(trace=1, maxit=1000))
 end_time <- Sys.time()
-ODEs_solution_duration <- end_time - start_time
-ODEs_solution_duration
+nm_default <- end_time - start_time
 
-#x_optimum <- exp(unlist(optimization["par"]))
+# BFGS
+set.seed(0)
+x0 <- log(runif(11, 1e-05,10))
+names(x0) <- c("x_gen", "P_ht", "P_lu", "P_li", "P_spl",
+               "P_ki", "P_git", "P_bone", "P_rob",
+               "CLE_f", "CLE_u")
+start_time <- Sys.time()
+bgfs_optimization <- optimx(par = x0, fn = obj.func, method = c("BFGS"),
+                           control = list(trace=1, maxit=200))
+end_time <- Sys.time()
+bfgs_time <- end_time - start_time
 
+#L-BFGS-B
+set.seed(0)
+x0 <- log(runif(11, 1e-05,10))
+names(x0) <- c("x_gen", "P_ht", "P_lu", "P_li", "P_spl",
+               "P_ki", "P_git", "P_bone", "P_rob",
+               "CLE_f", "CLE_u")
+start_time <- Sys.time()
+L_bfgs_B_optimization <- optimx(par = x0, fn = obj.func, method = c("BFGS"),
+                            control = list(trace=1, maxit=200))
+end_time <- Sys.time()
+L_bfgs_B_time <- end_time - start_time
+
+# CG
+set.seed(0)
+x0 <- log(runif(11, 1e-05,10))
+names(x0) <- c("x_gen", "P_ht", "P_lu", "P_li", "P_spl",
+               "P_ki", "P_git", "P_bone", "P_rob",
+               "CLE_f", "CLE_u")
+start_time <- Sys.time()
+CG_optimization <- optimx(par = x0, fn = obj.func, method = c("CG"),
+                            control = list(trace=1, maxit=200))
+end_time <- Sys.time()
+CG_time <- end_time - start_time
+
+# 
+# # from difoptim package
+# set.seed(0)
+# x0 <- runif(4)
+# names(x0) <- c("x_gen", "P_gen", "CLE_f", "CLE_u")
+# start_time <- Sys.time()
+# nm_optimizer <- nmkb(par = x0, fn = obj.func, lower = 0, upper = 10000,
+#                     control = list(trace=TRUE, maxfeval=1000))
+# end_time <- Sys.time()
+# ODEs_solution_duration <- end_time - start_time
+# ODEs_solution_duration
