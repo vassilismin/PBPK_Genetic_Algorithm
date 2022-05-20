@@ -536,7 +536,7 @@ ga_fitness <- function(x)
   names(x0) <- c(pnames, xnames,"CLE_f", "CLE_u")
   nm_optimizer_max <- nmk(par = x0, fn = obj.func,
                           control = list(maxfeval=1e+4, trace=TRUE))
-  
+  nm_optimizer_max$value
   return(AIC_result)
 }
 
