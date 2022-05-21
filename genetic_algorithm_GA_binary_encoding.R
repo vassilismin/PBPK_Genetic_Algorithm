@@ -180,7 +180,7 @@ create.params <- function(comp_names, w){
 # desired ODE system. It takes as input the values of parameters and returns the matrix.
 #--------------------------------------------------------------------------------------------------
 
-create_ODE_matrix <- function(parameters, problem){
+create_ODE_matrix <- function(parameters, grouping){
   with( as.list(parameters),{
     #============================
     #Indexing of state variables
@@ -204,19 +204,12 @@ create_ODE_matrix <- function(parameters, problem){
     # state variable x_i and each column represents the value of the coefficient of each state variable x_j in ODE 
     # of each x_i. The indexing of state variables is analytically presented in the table "Indexing of state variables".
     
-    if (problem == "max"){
       x_ht <- x_ht; x_lu <- x_lu; x_li <- x_li; x_spl <- x_spl; x_ki <- x_ki
       x_git <- x_git ; x_bone <- x_bone; x_rob <- x_rob
       
       P_ht <- P_ht; P_lu <- P_lu; P_li <- P_li; P_spl <- P_spl
       P_ki <- P_ki; P_git <- P_git ; P_bone <- P_bone; P_rob <- P_rob
-    } else if (problem == "min"){
-      x_ht <- x_gen; x_lu <- x_gen; x_li <- x_gen; x_spl <- x_gen; x_ki <- x_gen
-      x_git <- x_gen ; x_bone <- x_gen; x_rob <- x_gen
-      
-      P_ht <- P_gen; P_lu <- P_gen; P_li <- P_gen; P_spl <- P_gen
-      P_ki <- P_gen; P_git <- P_gen ; P_bone <- P_gen; P_rob <- P_gen
-    }
+   
     
     A <- matrix(c(rep(0,20^2)), 
                 nrow = 20)
@@ -296,8 +289,7 @@ create_ODE_matrix <- function(parameters, problem){
 # be calculated and "y_init" is the initial values of the state variables.
 #--------------------------------------------------------------------------------------------------
 
-Solve_exp_matrix <- function(x, time, y_init, parameters){
-  with(as.list(parameters),{
+solve_exp_matrix <- function(x, time, y_init){
     if(!is.matrix(x)){
       stop("x must be a NxN matrix")
     }
@@ -342,9 +334,7 @@ Solve_exp_matrix <- function(x, time, y_init, parameters){
     colnames(concentrations) <- c("Time","C_blood", "C_ht", "C_lu", "C_li",
                                   "C_spl", "C_ki", "C_git", "C_bone", "Feces", "Urine")
     
-    #return(list(y_t, concentrations))
     return(data.frame(concentrations))
-  })
 }
 
 #===============
@@ -423,11 +413,12 @@ pbpk.index <- function(observed, predicted, comp.names =NULL){
 #======================
 
 obj.func <- function(x){
-  names(x) <- names(x0)
-  params <- c(physiological_params, exp(x))
-  A <- create_ODE_matrix(params, problem = problem)
+  with(as.list(x),{
+    
+  params <- c(physiological, exp(fitted))
+  A <- create_ODE_matrix(params, grouping)
   
-  solution <-  Solve_exp_matrix(x = A, time = sample_time, y_init = y_init, parameters = params)
+  solution <-  solve_exp_matrix(x = A, time = sample_time, y_init = y_init)
   
   concentrations <- solution[solution$Time %in% time_points, 2:(dim(solution)[2]-2)]
   excr_solution <-  data.frame(solution$Time, solution$Feces, solution$Urine)
@@ -448,54 +439,69 @@ obj.func <- function(x){
   discrepancy <- pbpk.index(observed, predicted)
   
   return(discrepancy)
+  })
 }
 
+# Function for mapping the binary number to integer
+# Since with 4 digits numbers from 0-15 can be mapped and here we have 8 
+# different compartments, every two integers correspond to one compartment
+bin2int <- function(bin_seq){
+  int <- GA::binary2decimal(bin_seq)
+  if(int == 0 || int == 1){
+    return(1)
+  }else if(int == 2 || int == 3){
+    return(2)
+  }else if(int == 4 || int == 5){
+    return(3)
+  }else if(int == 6 || int == 7){
+    return(4)
+  }else if(int == 8 || int == 9){
+    return(5)
+  }else if(int == 10 || int == 11){
+    return(6)
+  }else if(int == 12 || int == 13){
+    return(7)
+  }else if(int == 14 || int == 15){
+    return(8)
+  }
+}
 
 # Function for converting binary into integer (from )
-decode_ga <- function(x)
+decode_ga <- function(binary_num)
 { 
   # Convert binary encoding to gray encoding to avoid the Hamming cliff problem
-  x <- GA::gray2binary(x) 
+  gray_num <- GA::gray2binary(binary_num) 
+  gray_num <- binary_num 
   
   #Four digit binary encodes up to 15, if we are past 13, assign the value 13
   
   # Partition coefficient grouping
-  P1 <-ifelse(GA::binary2decimal(x[1:4])<=13,GA::binary2decimal(x[1:4]),13)
-  P2 <-ifelse(GA::binary2decimal(x[5:8])<=13,GA::binary2decimal(x[5:8]),13)
-  P3 <-ifelse(GA::binary2decimal(x[9:12])<=13,GA::binary2decimal(x[9:12]),13)
-  P4 <-ifelse(GA::binary2decimal(x[13:16])<=13,GA::binary2decimal(x[13:16]),13)
-  P5 <-ifelse(GA::binary2decimal(x[17:20])<=13,GA::binary2decimal(x[17:20]),13)
-  P6 <-ifelse(GA::binary2decimal(x[21:24])<=13,GA::binary2decimal(x[21:24]),13)
-  P7 <-ifelse(GA::binary2decimal(x[25:28])<=13,GA::binary2decimal(x[25:28]),13)
-  P8 <-ifelse(GA::binary2decimal(x[29:32])<=13,GA::binary2decimal(x[29:32]),13)
-  P9 <-ifelse(GA::binary2decimal(x[33:36])<=13,GA::binary2decimal(x[33:36]),13)
-  P10 <-ifelse(GA::binary2decimal(x[37:40])<=13,GA::binary2decimal(x[37:40]),13)
-  P11 <-ifelse(GA::binary2decimal(x[41:44])<=13,GA::binary2decimal(x[41:44]),13)
-  P12 <-ifelse(GA::binary2decimal(x[45:48])<=13,GA::binary2decimal(x[45:48]),13)
-  P13 <-ifelse(GA::binary2decimal(x[49:52])<=13,GA::binary2decimal(x[49:52]),13)
+  P1 <-bin2int(gray_num[1:4])
+  P2 <-bin2int(gray_num[5:8])
+  P3 <-bin2int(gray_num[9:12])
+  P4 <-bin2int(gray_num[13:16])
+  P5 <-bin2int(gray_num[17:20])
+  P6 <-bin2int(gray_num[21:24])
+  P7 <-bin2int(gray_num[25:28])
+  P8 <-bin2int(gray_num[29:32])
+  
   
   # Permeability coefficient grouping
-  X1 <-ifelse(GA::binary2decimal(x[53:56])<=13,GA::binary2decimal(x[53:56]),13)
-  X2 <-ifelse(GA::binary2decimal(x[57:60])<=13,GA::binary2decimal(x[57:60]),13)
-  X3 <-ifelse(GA::binary2decimal(x[61:64])<=13,GA::binary2decimal(x[61:64]),13)
-  X4 <-ifelse(GA::binary2decimal(x[65:68])<=13,GA::binary2decimal(x[65:68]),13)
-  X5 <-ifelse(GA::binary2decimal(x[69:72])<=13,GA::binary2decimal(x[69:72]),13)
-  X6 <-ifelse(GA::binary2decimal(x[73:76])<=13,GA::binary2decimal(x[73:76]),13)
-  X7 <-ifelse(GA::binary2decimal(x[77:80])<=13,GA::binary2decimal(x[77:80]),13)
-  X8 <-ifelse(GA::binary2decimal(x[81:84])<=13,GA::binary2decimal(x[81:84]),13)
-  X9 <-ifelse(GA::binary2decimal(x[85:88])<=13,GA::binary2decimal(x[85:88]),13)
-  X10 <-ifelse(GA::binary2decimal(x[89:92])<=13,GA::binary2decimal(x[89:92]),13)
-  X11 <-ifelse(GA::binary2decimal(x[93:96])<=13,GA::binary2decimal(x[93:96]),13)
-  X12 <-ifelse(GA::binary2decimal(x[97:100])<=13,GA::binary2decimal(x[97:100]),13)
-  X13 <-ifelse(GA::binary2decimal(x[101:104])<=13,GA::binary2decimal(x[101:104]),13)
+  X1 <-bin2int(gray_num[33:36])
+  X2 <-bin2int(gray_num[37:40])
+  X3 <-bin2int(gray_num[41:44])
+  X4 <-bin2int(gray_num[45:48])
+  X5 <-bin2int(gray_num[49:52])
+  X6 <-bin2int(gray_num[53:56])
+  X7 <-bin2int(gray_num[57:60])
+  X8 <-bin2int(gray_num[61:64])
   
-  out <- structure(c(P1,P2,P3,P4,P5,P6,P7,P8,P9,P10,P11,P12,P13,X1,X2,X3,X4,X5,
-                     X6,X7,X8,X9,X10,X11,X12,X13), names = c("P1","P2","P3","P4",
-                  "P5","P6", "P7", "P8","P9", "P10", "P11", "P12", "P13", "X1",
-                "X2", "X3", "X4", "X5", "X6", "X7", "X8", "X9", "X10", "X11", "X12", "X13"))
+  out <- structure(c(P1,P2,P3,P4,P5,P6,P7,P8, X1,X2,X3,X4,X5,
+                     X6,X7,X8), names = c("P1","P2","P3","P4",
+                  "P5","P6", "P7", "P8", "X1",
+                "X2", "X3", "X4", "X5", "X6", "X7", "X8"))
   return(out)
 }
-
 
 
 ga_fitness <- function(x) 
@@ -505,22 +511,21 @@ ga_fitness <- function(x)
   time_points <- c(1,3,7, 15, 30)*24 # hours
   excretion_time_points <- excretion_time
   sample_time <- seq(0, 30*24, 1)
-  
   # Initialise vector of physiological parameters
-  physiological_params<-create.params(compartments,mass)
+  physiological_params <- create.params(compartments,mass)
   
   #---------------------------
   # Define fitting parameters 
   #---------------------------
   
   # Convert the binary encoding to integer
-  par <- decode_ga(x)
+  grouping <- decode_ga(x)
   # Define size of P and X groups
   P_groups <- length(unique(par[1:13]))  # sample size
   X_groups <- length(unique(par[14:length(par)]))  # sample size
   set.seed(0)
   # Initilise parameter values
-  x0 <- log(runif(P_groups+X_groups+2, 1e-05,100))
+  fitted <- log(runif(P_groups+X_groups+2, 1e-05,100))
   # Initialise naming vectors
   pnames <- rep(NA, P_groups)
   xnames <- rep(NA, X_groups)
@@ -533,8 +538,15 @@ ga_fitness <- function(x)
     xnames[j] <- paste0("X", as.character(unique(par[14:length(par)])[j]))
   }
   # Define the total parameter vector names
-  names(x0) <- c(pnames, xnames,"CLE_f", "CLE_u")
-  nm_optimizer_max <- nmk(par = x0, fn = obj.func,
+  names(fitted) <- c(pnames, xnames,"CLE_f", "CLE_u")
+  params <- list( y_init = y_init,
+                  time_points = time_points,
+                  excretion_time_points =  excretion_time_points,
+                  sample_time - sample_time,
+                 physiological = physiological_params, 
+                 fitted = fitted, 
+                 grouping = grouping )
+  nm_optimizer_max <- nmk(par = params, fn = obj.func,
                           control = list(maxfeval=1e+4, trace=TRUE))
   nm_optimizer_max$value
   return(AIC_result)

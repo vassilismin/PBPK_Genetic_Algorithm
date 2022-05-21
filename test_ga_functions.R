@@ -7,3 +7,14 @@ P_groups <- length(unique(par[1:13]))  # sample size
 X_groups <- length(unique(par[14:length(par)]))  # sample size
 
 c <- par[2]  # acceptance number
+
+-----------------------------------------------------------------------------------------------
+  
+  myf <- function(parameters){
+    with(as.list(parameters),{
+      with(as.list(pars),{
+        
+      print(grouping)
+    })
+    })
+    }
