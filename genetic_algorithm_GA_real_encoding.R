@@ -714,7 +714,7 @@ ga_fitness <- function(chromosome)
 # gareal_nraMutation: Nonuniform random mutation.
 # gareal_rsMutation: Random mutation around the solution.
 
-GA_results <- GA::ga(type = "real", fitness = mfitness, 
+GA_results <- GA::ga(type = "real", fitness = ga_fitness, 
                      lower = rep(1,16), upper = rep(8.999,16),  
                      population = "gareal_Population",
                      selection = "gareal_lsSelection",
