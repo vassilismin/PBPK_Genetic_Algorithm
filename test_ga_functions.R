@@ -22,9 +22,23 @@ k <- c(0,1,0,1)
 print(GA::binary2decimal(GA::gray2binary(k)))
 print(GA::binary2decimal(k))
 
+
+data_list <- list("1" = runif(16,1,8.99),
+                  "2" = runif(16,1,8.99),
+                  "3" = runif(16,1,8.99),
+                  "4" = runif(16,1,8.99),
+                  "5" = runif(16,1,8.99),
+                  "6" = runif(16,1,8.99),
+                  "7" = runif(16,1,8.99),
+                   "6" = runif(16,1,8.99))
+
 start_time = Sys.time()
-count = 0
-re <- ga_fitness(runif(16,1,8.99))
+clus <- parallel::makeCluster(parallel::detectCores()-2)
+parallel::clusterExport(clus,"ga_fitness")
+re <-parallel::parLapply(clus,data_list,ga_fitness)
 end_time = Sys.time()
 print(end_time-start_time)
-print(re)
+# Close cluster
+parallel::stopCluster(clus)
+
+

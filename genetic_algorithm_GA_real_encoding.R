@@ -605,9 +605,7 @@ ga_fitness <- function(chromosome)
   #===================================
   #####################################
   
-  count = count+1
-  print(paste0("The current chromosome is chromosome ", count))
-  # Nelder-Mead from dfoptim package
+    # Nelder-Mead from dfoptim package
   y_init <- c(dose, rep(0,19))
   time_points <- c(1,3,7, 15, 30)*24 # hours
   excretion_time_points <- excretion_time
