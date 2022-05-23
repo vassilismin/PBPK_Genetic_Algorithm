@@ -16,4 +16,8 @@ c <- par[2]  # acceptance number
     with(as.list(dots),{
       print(a)
     })
-    }
+  }
+
+k <- c(0,1,0,1)	
+print(GA::binary2decimal(GA::gray2binary(k)))
+print(GA::binary2decimal(k))
