@@ -21,3 +21,9 @@ c <- par[2]  # acceptance number
 k <- c(0,1,0,1)	
 print(GA::binary2decimal(GA::gray2binary(k)))
 print(GA::binary2decimal(k))
+
+start_time = Sys.time()
+count = 0
+ga_fitness(runif(16,1,8.99))
+end_time = Sys.time()
+print(end_time-start_time)
