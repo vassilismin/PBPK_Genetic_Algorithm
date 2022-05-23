@@ -699,7 +699,7 @@ ga_fitness <- function(chromosome)
   solution <-  solve_exp_matrix(x = A, time = sample_time, y_init = y_init,phys_pars = phys_pars )
  
   observed <- list()
-  for (i in 1:(length(concentrations))) {
+  for (i in 1:(length(df))) {
     observed[[i]] <- cbind(time_points, df[,i])
   }
   observed[[i+1]] <-  cbind(excretion_time_points,excretion[,1]) #feces

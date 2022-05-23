@@ -24,6 +24,7 @@ print(GA::binary2decimal(k))
 
 start_time = Sys.time()
 count = 0
-ga_fitness(runif(16,1,8.99))
+re <- ga_fitness(runif(16,1,8.99))
 end_time = Sys.time()
 print(end_time-start_time)
+print(re)
