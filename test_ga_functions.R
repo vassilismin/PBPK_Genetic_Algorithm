@@ -10,11 +10,10 @@ c <- par[2]  # acceptance number
 
 -----------------------------------------------------------------------------------------------
   
-  myf <- function(parameters){
-    with(as.list(parameters),{
-      with(as.list(pars),{
-        
-      print(grouping)
-    })
+  myf <- function(...){
+    dots <- list(...)
+    
+    with(as.list(dots),{
+      print(a)
     })
     }

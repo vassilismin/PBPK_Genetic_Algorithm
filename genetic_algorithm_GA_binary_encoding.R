@@ -1,6 +1,8 @@
-library(expm)
-library(optimx)
-library(dfoptim) 
+# Write a description
+
+#===============
+# Load data  
+#===============
 setwd("C:/Users/ptsir/Documents/GitHub/PBPK_Genetic_Algorithm")
 
 dose_kg <- 10 # mg/kg rat body
@@ -23,11 +25,6 @@ df[5,1] <- 1e-05
 
 excretion <- (excretion/100)*dose
 
-####################################################################
-###################     Physiological Data      ###################
-####################################################################
-
-
 ### Important!!! each compartment has a specific index vectors Tissue_fractions, Regional_flow_fractions, Capillary_fractions and cannot be changed
 # The index of each compartment:
 #Rest of Body (rob) --> 1
@@ -45,9 +42,6 @@ excretion <- (excretion/100)*dose
 #Gastrointestinal track (GIT) --> 13
 
 
-####################
-### User's INPUT ###
-####################
 #### If any of these compartments don not exist in pbpk, just give it the value NA in compartments vector, example: "Heart" = NA and it will remove it 
 #### from the equilibriums and the corresponding V_tis, V_cap, Q will be equal to NA.
 
@@ -56,9 +50,15 @@ compartments <- list( "RoB"="RoB","Heart"="Heart", "Kidneys"="Kidneys", "Brain"=
                       "Lungs"="Lungs", "Liver"="Liver", "Uterus"=NA, "Bone"="Bone", "Adipose"=NA, "Skin"=NA, "Muscles"=NA, "GIT"="GIT") #used as input in function, compartments that are used in pbpk
 
 
-#####################################
-### Function to create Parameters ###
-#####################################
+########################
+#======================
+#  ***  FUNCTIONS  ***
+#======================
+#######################
+
+#=====================
+#1. Create parameters  
+#=====================
 create.params <- function(comp_names, w){
   
   # List with names of all possible compartments
@@ -174,14 +174,16 @@ create.params <- function(comp_names, w){
 
 
 
-
+#=======================
+#2. Create system matrix  
+#=======================
 #--------------------------------------------------------------------------------------------------
 # "create_ODE_matrix()" creates the matrix with the coefficients of the state variables of the 
 # desired ODE system. It takes as input the values of parameters and returns the matrix.
 #--------------------------------------------------------------------------------------------------
 
-create_ODE_matrix <- function(parameters, grouping){
-  with( as.list(parameters),{
+create_ODE_matrix <- function(phys_pars, fit_pars, position){
+  with( as.list(phys_pars),{
     #============================
     #Indexing of state variables
     #============================
@@ -204,12 +206,30 @@ create_ODE_matrix <- function(parameters, grouping){
     # state variable x_i and each column represents the value of the coefficient of each state variable x_j in ODE 
     # of each x_i. The indexing of state variables is analytically presented in the table "Indexing of state variables".
     
-      x_ht <- x_ht; x_lu <- x_lu; x_li <- x_li; x_spl <- x_spl; x_ki <- x_ki
-      x_git <- x_git ; x_bone <- x_bone; x_rob <- x_rob
+    # Numbering of parameters
+    #1:ht, 2:lu, 3:li, 4:spl, 5:ki, 6:git, 7:bone, 8:rob
       
-      P_ht <- P_ht; P_lu <- P_lu; P_li <- P_li; P_spl <- P_spl
-      P_ki <- P_ki; P_git <- P_git ; P_bone <- P_bone; P_rob <- P_rob
-   
+    P_ht <- fit_pars[position[1]]
+    P_lu <- fit_pars[position[2]]
+    P_li <- fit_pars[position[3]]
+    P_spl <- fit_pars[position[4]]
+    P_ki <- fit_pars[position[5]]
+    P_git <- fit_pars[position[6]]
+    P_bone <- fit_pars[position[7]]
+    P_rob <- fit_pars[position[8]]
+      
+    x_ht <- fit_pars[position[9]]
+    x_lu <- fit_pars[position[10]]
+    x_li <- fit_pars[position[11]]
+    x_spl <- fit_pars[position[12]]
+    x_ki <- fit_pars[position[13]]
+    x_git <- fit_pars[position[14]]
+    x_bone <- fit_pars[position[15]]
+    x_rob <- fit_pars[position[16]]
+    
+    CLE_f <- fit_pars[length(fit_pars)-1]
+    CLE_u <- fit_pars[length(fit_pars)]
+      
     
     A <- matrix(c(rep(0,20^2)), 
                 nrow = 20)
@@ -283,13 +303,18 @@ create_ODE_matrix <- function(parameters, grouping){
   })
 }
 
+#====================
+#3. Matrix exponent 
+#====================
 #--------------------------------------------------------------------------------------------------
 # "Solve_exp_matrix()" is a function that solves the ODE system using the matrix "x" (which 
 # contains the coefficients of the system), "time" which is the desired time points to 
 # be calculated and "y_init" is the initial values of the state variables.
 #--------------------------------------------------------------------------------------------------
 
-solve_exp_matrix <- function(x, time, y_init){
+solve_exp_matrix <- function(x, time, y_init, phys_pars){
+  with( as.list(phys_pars),{
+    
     if(!is.matrix(x)){
       stop("x must be a NxN matrix")
     }
@@ -312,7 +337,7 @@ solve_exp_matrix <- function(x, time, y_init){
     
     y_t[,1] <- y_init
     for (t in 2:length(time)) {
-      solution_t <- expm(x*time[t])%*%y_init
+      solution_t <- expm::expm(x*time[t])%*%y_init
       y_t[,t] <- solution_t
     }
     rownames(y_t) <- rownames(x)
@@ -335,6 +360,7 @@ solve_exp_matrix <- function(x, time, y_init){
                                   "C_spl", "C_ki", "C_git", "C_bone", "Feces", "Urine")
     
     return(data.frame(concentrations))
+  })
 }
 
 #===============
@@ -412,13 +438,16 @@ pbpk.index <- function(observed, predicted, comp.names =NULL){
 #5. Objective function  
 #======================
 
-obj.func <- function(x){
-  with(as.list(x),{
-    
-  params <- c(physiological, exp(fitted))
-  A <- create_ODE_matrix(params, grouping)
+obj.func <- function(params, ...){
   
-  solution <-  solve_exp_matrix(x = A, time = sample_time, y_init = y_init)
+  dots <- list(...)
+  with(as.list(dots),{
+    
+  # Create the matrix of the system  
+  A <- create_ODE_matrix(phys_pars = phys_pars, fit_pars =exp(params),  position = position )
+  
+  # Solve the ODE system using the exponential matrix method  
+  solution <-  solve_exp_matrix(x = A, time = sample_time, y_init = y_init,phys_pars = phys_pars )
   
   concentrations <- solution[solution$Time %in% time_points, 2:(dim(solution)[2]-2)]
   excr_solution <-  data.frame(solution$Time, solution$Feces, solution$Urine)
@@ -442,6 +471,9 @@ obj.func <- function(x){
   })
 }
 
+#==================
+#5.Binary mapping 
+#==================
 # Function for mapping the binary number to integer
 # Since with 4 digits numbers from 0-15 can be mapped and here we have 8 
 # different compartments, every two integers correspond to one compartment
@@ -466,6 +498,10 @@ bin2int <- function(bin_seq){
   }
 }
 
+
+#=============================
+#6. Convert binary to grouping  
+#=============================
 # Function for converting binary into integer (from )
 decode_ga <- function(binary_num)
 { 
@@ -503,8 +539,96 @@ decode_ga <- function(binary_num)
   return(out)
 }
 
+#=====================================
+#7. Calculate Residual Sum of Squares  
+#=====================================
 
-ga_fitness <- function(x) 
+RSS <- function(predictions, observations, times=NULL){
+  
+  if(!is.list(observations)){
+    stop("Observations must be given as a list")
+  }
+  
+  for (i in 1:length(observations)) {
+    if(!is.matrix(observations[[i]])){
+      stop("Each element of observations list must bea 2-column matrix")
+    }
+    if(ncol(observations[[i]]) != 2){
+      stop("Each element of observations must be a 2-column matrix")
+    }
+  }
+  
+  # Checking if all the compartments have been measured for the same time points
+  for (i in 1:(length(observations)-1)) {
+    if(all(observations[[i]][,1] == observations[[i+1]][,1])){
+      different_times <- FALSE
+    }else{
+      different_times <- TRUE
+      break
+    }
+  }
+  if (!is.null(times) & (different_times == TRUE)){
+    warning("parameter 'times' will not be used because different time vectors have
+            been detected in the observations provided")
+  }
+  
+  predicted <- list()
+  if(different_times){ # if the data time points for each compartment are different, ignore times parameter and keep all the values from the data
+    for(i in colnames(predictions)[2:dim(predictions)[2]]){
+      predicted[[i]] <- predictions[which(predictions$Time %in% observations[[i]][,1]) ,i]
+    }
+  }else{ # if the data time points for each compartment are the same, use times parameter and keep data only for these moments
+    for(i in colnames(predictions)[2:dim(predictions)[2]]){
+      predicted[[i]] <- predictions[which(predictions$Time %in% times),i]
+      observations[[i]] <- observations[[i]][which(observations[[i]][,1] %in% times ),]
+    }
+  }
+  
+  observed <- list()
+  for (i in 1:length(observations)) {
+    observed[[i]] <- observations[[i]][,2] #drop the column of time for each compartment and keep ony the data
+  }
+  
+  res <- list() 
+  for (i in 1:length(observed)) { # loop for each compartment
+    res[[i]] <- observed[[i]] - predicted[[i]] # calculate the residuals of each compartment and store them to lists
+  }
+  names(res) <- names(observed)
+  
+  return(sum((unlist(res))^2)) # Unlist all residuals and sum their squared values
+}
+#=================
+#8. Calculate AIC  
+#=================
+#=====================
+# Akaike information criteria corrected for small sample size
+# n = Number of total observations 
+# k = Number of model parameters
+# Observations is a list of lists, each sublist consist of a 2 col-matrix,
+# with the first column being time and the second the actual observations. 
+# Predictions is a dataframe with time as its first column and the rest
+# of the columns being the tissues of interest. The names of the predictions and
+# observations should be the same.
+AICc <- function(k, predictions, observations, n = NULL, times=NULL){
+
+  
+  # calculate n in case it is not given
+  if(is.null(n) & is.null(times)){
+    n <- 0 
+    for (i in 1:length(observations)) {
+      n <- n + dim(observations[[i]])[1]
+    }
+  }else if(is.null(n) & !is.null(times)){
+    n <- length(observations) * lengths(times)
+  }
+  AICc <- -2*log(RSS(predictions,observations,times)/n) + 2*k + (2*k*(k+1))/(n-k-1)
+  return(AICc)
+}
+
+#==========================
+#9. Calculate fitness score  
+#==========================
+ga_fitness <- function(chromosome) 
 { 
   # Nelder-Mead from dfoptim package
   y_init <- c(dose, rep(0,19))
@@ -512,50 +636,87 @@ ga_fitness <- function(x)
   excretion_time_points <- excretion_time
   sample_time <- seq(0, 30*24, 1)
   # Initialise vector of physiological parameters
-  physiological_params <- create.params(compartments,mass)
+  phys_pars <- create.params(compartments,mass)
   
   #---------------------------
   # Define fitting parameters 
   #---------------------------
-  
+  N_p <-8 #   Number of partition coefficients
+  N_x <- 8#   Number of permeability coefficients
   # Convert the binary encoding to integer
-  grouping <- decode_ga(x)
+  grouping <- decode_ga(chromosome)
   # Define size of P and X groups
-  P_groups <- length(unique(par[1:13]))  # sample size
-  X_groups <- length(unique(par[14:length(par)]))  # sample size
+  P_groups <- length(unique(grouping[1:N_p]))  # sample size
+  X_groups <- length(unique(grouping[(N_p+1):(N_p+N_x)]))  # sample size
   set.seed(0)
   # Initilise parameter values
-  fitted <- log(runif(P_groups+X_groups+2, 1e-05,100))
+  fitted <- log(exp(runif(P_groups+X_groups+2, -3,3)))
   # Initialise naming vectors
   pnames <- rep(NA, P_groups)
   xnames <- rep(NA, X_groups)
   
   #Define names for P and X groups
   for (i in 1:P_groups){
-    pnames[i] <- paste0("P", as.character(unique(par[1:13])[i]))
+    pnames[i] <- paste0("P", as.character(unique(grouping[1:N_p])[i]))
   }
   for (j in 1:X_groups){
-    xnames[j] <- paste0("X", as.character(unique(par[14:length(par)])[j]))
+    xnames[j] <- paste0("X", as.character(unique(grouping[(N_p+1):(N_p+N_x)])[j]))
   }
   # Define the total parameter vector names
   names(fitted) <- c(pnames, xnames,"CLE_f", "CLE_u")
-  params <- list( y_init = y_init,
-                  time_points = time_points,
-                  excretion_time_points =  excretion_time_points,
-                  sample_time - sample_time,
-                 physiological = physiological_params, 
-                 fitted = fitted, 
-                 grouping = grouping )
-  nm_optimizer_max <- nmk(par = params, fn = obj.func,
-                          control = list(maxfeval=1e+4, trace=TRUE))
-  nm_optimizer_max$value
-  return(AIC_result)
+  # Variable for keeping which value in the fitted params vector corresponds to each coefficient
+  position = rep(NA, length(grouping))
+  for (i in 1:(length(position))){
+    if(i<=8){
+    position[i] <- which(names(fitted) == paste0("P", as.character(grouping[i])))
+    }else{
+      position[i] <- which(names(fitted) == paste0("X", as.character(grouping[i])))
+    }
+  }
+  # Run the Nelder Mead algorithmm to estimate the parameter values
+  nm_optimizer_max <- dfoptim::nmk(par = fitted, fn = obj.func,
+                          control = list(maxfeval=1e+4), y_init = y_init,
+                          time_points = time_points,
+                          excretion_time_points =  excretion_time_points,
+                          sample_time = sample_time,
+                          phys_pars = phys_pars, 
+                          position = position )
+  # Extract the converged parameter values in the log space
+  params <- nm_optimizer_max$par
+  # Create the matrix of the system  
+  A <- create_ODE_matrix(phys_pars = phys_pars, fit_pars =exp(params),  position = position )
+  # Solve the ODE system using the exponential matrix method  
+  solution <-  solve_exp_matrix(x = A, time = sample_time, y_init = y_init,phys_pars = phys_pars )
+ 
+  observed <- list()
+  for (i in 1:(length(concentrations))) {
+    observed[[i]] <- cbind(time_points, df[,i])
+  }
+  observed[[i+1]] <-  cbind(excretion_time_points,excretion[,1]) #feces
+  observed[[i+2]] <-  cbind(excretion_time_points,excretion[,2]) #urine
+  names(observed) <- c(names(df), names(excretion))
+  
+  predicted <- solution
+  names(predicted) <- c("Times",names(df), "Feces", "Urine")
+
+  #Obtain AIC for predictions vs observations
+  AIC_result <- AICc(k =length(params), predictions = predicted, observations = observed)
+  # GA solves a maximisation problem, and best model gives minimum AIC, so take opposite of AIC
+  fit_value <- -AIC_result
+  return(list(AIC_result))
 }
 
-#----------------------------------------------------------------------#
-#                    Available tuning parameters                       #
-#                        (binary encoding)                             #
-#----------------------------------------------------------------------#
+##############################
+#=============================
+#  ***  Genetic algorithm  ***
+#=============================
+##############################
+
+#=======================================================================
+#                    Available tuning parameters                       
+#                        (binary encoding)                             
+#=======================================================================
+
 #                            /Selection/          
 # gabin_lrSelection:Linear-rank selection
 # gabin_nlrSelection:Nonlinear-rank selection.
@@ -569,20 +730,20 @@ ga_fitness <- function(x)
 #                           /Mutation/
 # gabin_raMutation: Uniform random mutation
 
-GA_results <- ga(type = "binary", fitness = ga_fitness, 
-          nBits = 4*13*2,  
+GA_results <- GA::ga(type = "binary", fitness = ga_fitness, 
+          nBits = 4*8*2,  
           population = "gabin_Population",
           selection = "gabin_rwSelection",
           crossover = "gabin_spCrossover", 
           mutation = "gabin_raMutation",
-          popSize = 16, #the population size.
+          popSize = 6, #the population size.
           pcrossover = 0.8, #the probability of crossover between pairs of chromosomes.
           pmutation = 0.1, #the probability of mutation in a parent chromosome
           elitism = 2, #the number of best fitness individuals to survive at each generation. 
-          maxiter = 30, #the maximum number of iterations to run before the GA search is halted.
+          maxiter = 10, #the maximum number of iterations to run before the GA search is halted.
           run = 5, # the number of consecutive generations without any improvement
           #in the best fitness value before the GA is stopped.
           keepBest = TRUE, # best solutions at each iteration should be saved in a slot called bestSol.
           parallel = TRUE,
-          monitor ='plot',
+          monitor = plot,
           seed = 1234)
