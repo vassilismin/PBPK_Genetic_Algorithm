@@ -728,6 +728,6 @@ GA_results <- GA::ga(type = "real", fitness = mfitness,
                      run = 5, # the number of consecutive generations without any improvement
                      #in the best fitness value before the GA is stopped.
                      keepBest = TRUE, # best solutions at each iteration should be saved in a slot called bestSol.
-                     parallel = TRUE,
+                     parallel = (parallel::detectCores()-2),
                      monitor = plot,
                      seed = 1234)
