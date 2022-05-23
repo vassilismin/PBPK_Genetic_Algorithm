@@ -680,7 +680,7 @@ ga_fitness <- function(chromosome)
   AIC_result <- AICc(k =length(params), predictions = predicted, observations = observed)
   # GA solves a maximisation problem, and best model gives minimum AIC, so take opposite of AIC
   fit_value <- -AIC_result
-  return(list(AIC_result))
+  return(AIC_result)
 }
 
 ##############################
