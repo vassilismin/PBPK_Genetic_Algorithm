@@ -1,13 +1,6 @@
-# Write a description
+# This script calculates the AIC and PBPK index of the maximum problem
 
 
-
-#==========================
-#9. Calculate fitness score  
-#==========================
-ga_fitness <- function(chromosome) 
-{ 
-  
   #===============
   # Load data  
   #===============
@@ -19,7 +12,7 @@ ga_fitness <- function(chromosome)
   
   # Load raw data from paper Xie et al.2011
   df <- openxlsx::read.xlsx("TiO2_iv_rat.xlsx", sheet = 1, colNames = T, rowNames = T) # TiO2 NPs %ID/g of tissue  (Table 1)
-  excretion <- openxlsx::read.xlsx("Cummulative_Excretion.xlsx", sheet = 1, colNames = T, rowNames = F) # accumulated excretory rate, expressed as %ID
+  excretion <- openxlsx::read.xlsx("Cummulative_Excretion.xlsx", sheet = 2, colNames = T, rowNames = F) # accumulated excretory rate, expressed as %ID
   excretion_time <- round(excretion[,1])*24 # hours
   excretion <- excretion[,c(2:3)]
   
@@ -503,17 +496,40 @@ ga_fitness <- function(chromosome)
       if(all(observations[[i]][,1] == observations[[i+1]][,1])){
         different_times <- FALSE
       }else{
+        # If at least one compartmenthas different time points, break
         different_times <- TRUE
         break
       }
     }
+    
+    # Set the observation times vector if all observations have the same time points
+    if(different_times == FALSE){
+      observations_time <- observations[[1]][,1]
+    }
+    
+    # If user provided time points but observations have different time points, then times can't be used  
     if (!is.null(times) & (different_times == TRUE)){
       warning("parameter 'times' will not be used because different time vectors have
             been detected in the observations provided")
     }
     
+    # If user provided time points that are not part of the observation time points, then times can't be used  
+    if (!is.null(times) & (different_times == FALSE)){
+      if (sum(times%in%observations_time)<length(times)){
+      warning("parameter 'times' will not be used because it contains time points 
+             that are not part of the observations ")
+        times <- observations_time
+      }
+    }
+    
+    # If user did not provide time points, then keep the time points of the observations
+    if (is.null(times) & (different_times == FALSE)){
+     times <- observations_time
+    }
+    
     predicted <- list()
-    if(different_times){ # if the data time points for each compartment are different, ignore times parameter and keep all the values from the data
+    if(different_times == TRUE){ 
+      # if the data time points for each compartment are different, ignore times parameter and keep all the values from the data
       for(i in colnames(predictions)[2:dim(predictions)[2]]){
         predicted[[i]] <- predictions[which(predictions$Time %in% observations[[i]][,1]) ,i]
       }
@@ -526,14 +542,19 @@ ga_fitness <- function(chromosome)
     
     observed <- list()
     for (i in 1:length(observations)) {
-      observed[[i]] <- observations[[i]][,2] #drop the column of time for each compartment and keep ony the data
+      # If user provided only one point the observations have collapsed into a vector
+      if(length(times)==1){
+        observed[[i]] <- observations[[i]][2] #drop the column of time for each compartment and keep ony the data
+      }else{
+        observed[[i]] <- observations[[i]][,2] #drop the column of time for each compartment and keep ony the data
+      }
     }
     
     res <- list() 
     for (i in 1:length(observed)) { # loop for each compartment
       res[[i]] <- observed[[i]] - predicted[[i]] # calculate the residuals of each compartment and store them to lists
     }
-    names(res) <- names(observed)
+    names(res) <- names(predictions[2:length(names(predictions))])
     
     return(sum((unlist(res))^2)) # Unlist all residuals and sum their squared values
   }
@@ -551,7 +572,6 @@ ga_fitness <- function(chromosome)
   # observations should be the same.
   AICc <- function(k, predictions, observations, n = NULL, times=NULL){
     
-    
     # calculate n in case it is not given
     if(is.null(n) & is.null(times)){
       n <- 0 
@@ -561,15 +581,340 @@ ga_fitness <- function(chromosome)
     }else if(is.null(n) & !is.null(times)){
       n <- length(observations) * lengths(times)
     }
-    AICc <- -2*log(RSS(predictions,observations,times)/n) + 2*k + (2*k*(k+1))/(n-k-1)
+    print(paste0("RSS is: ",RSS(predictions,observations,times)))
+    AICc <- n*log(RSS(predictions,observations,times)/n) + 2*k + (2*k*(k+1))/(n-k-1)
     return(AICc)
   }
+ 
+  ####################################
+  #===================================
+  #  *** MAX PROBLEM ***  
+  #===================================
+  #####################################
+  
+  # Nelder-Mead from dfoptim package
+  y_init <- c(dose, rep(0,19))
+  time_points <- c(1,3,7, 15, 30)*24 # hours
+  excretion_time_points <- excretion_time
+  sample_time <- seq(0, 30*24, 1)
+  # Initialise vector of physiological parameters
+  phys_pars <- create.params(compartments,mass)
+  
+  #---------------------------
+  # Define fitting parameters 
+  #---------------------------
+  N_p <-8 #   Number of partition coefficients
+  N_x <- 8#   Number of permeability coefficients
+  # Convert the binary encoding to integer
+  grouping <- c(1:8,1:8)
+  # Define size of P and X groups
+  P_groups <- length(unique(grouping[1:N_p]))  # sample size
+  X_groups <- length(unique(grouping[(N_p+1):(N_p+N_x)]))  # sample size
+ # set.seed(0)
+  # Initilise parameter values
+  fitted <- log(exp(runif(P_groups+X_groups+2, -2,2)))
+  # Initialise naming vectors
+  pnames <- rep(NA, P_groups)
+  xnames <- rep(NA, X_groups)
+  
+  #Define names for P and X groups
+  for (i in 1:P_groups){
+    pnames[i] <- paste0("P", as.character(unique(grouping[1:N_p])[i]))
+  }
+  for (j in 1:X_groups){
+    xnames[j] <- paste0("X", as.character(unique(grouping[(N_p+1):(N_p+N_x)])[j]))
+  }
+  # Define the total parameter vector names
+  names(fitted) <- c(pnames, xnames,"CLE_f", "CLE_u")
+  # Variable for keeping which value in the fitted params vector corresponds to each coefficient
+  position = rep(NA, length(grouping))
+  for (i in 1:(length(position))){
+    if(i<=8){
+      position[i] <- which(names(fitted) == paste0("P", as.character(grouping[i])))
+    }else{
+      position[i] <- which(names(fitted) == paste0("X", as.character(grouping[i])))
+    }
+  }
+  # Run the Nelder Mead algorithmm to estimate the parameter values
+  nm_optimizer_max <- dfoptim::nmk(par = fitted, fn = obj.func,
+                                   control = list(maxfeval=2000, trace=T), y_init = y_init,
+                                   time_points = time_points,
+                                   excretion_time_points =  excretion_time_points,
+                                   sample_time = sample_time,
+                                   phys_pars = phys_pars, 
+                                   position = position )
+
+  # Extract the converged parameter values in the log space
+  params <- nm_optimizer_max$par
+  # Create the matrix of the system  
+  A <- create_ODE_matrix(phys_pars = phys_pars, fit_pars =exp(params),  position = position )
+  # Solve the ODE system using the exponential matrix method  
+  solution <-  solve_exp_matrix(x = A, time = sample_time, y_init = y_init,phys_pars = phys_pars )
+  
+  observed <- list()
+  for (i in 1:(length(df))) {
+    observed[[i]] <- cbind(time_points, df[,i])
+  }
+  observed[[i+1]] <-  cbind(excretion_time_points,excretion[,1]) #feces
+  observed[[i+2]] <-  cbind(excretion_time_points,excretion[,2]) #urine
+  names(observed) <- c(names(df), names(excretion))
+  
+  predicted <- solution
+  names(predicted) <- c("Times",names(df), "Feces", "Urine")
+  
+  #Obtain AIC for predictions vs observations
+  AIC_result <- AICc(k =length(params), predictions = predicted, observations = observed)
+  # GA solves a maximisation problem, and best model gives minimum AIC, so take opposite of AIC
+  fit_value_max <- AIC_result
+  print(paste0(" AIC value is ", fit_value_max))
+  
+  print(paste0("PBPK index is ", nm_optimizer_max$value))
+  
+  
+  
+  ####################################
+  #===================================
+  #  *** MIN PROBLEM ***  
+  #===================================
+  #####################################
+  #---------------------------
+  # Define fitting parameters 
+  #---------------------------
+  # Convert the binary encoding to integer
+  grouping <- rep(1,16)
+  # Define size of P and X groups
+  P_groups <- length(unique(grouping[1:N_p]))  # sample size
+  X_groups <- length(unique(grouping[(N_p+1):(N_p+N_x)]))  # sample size
+  # set.seed(0)
+  # Initilise parameter values
+  fitted <- log(exp(runif(P_groups+X_groups+2, -2,2)))
+  # Initialise naming vectors
+  pnames <- rep(NA, P_groups)
+  xnames <- rep(NA, X_groups)
+  
+  #Define names for P and X groups
+  for (i in 1:P_groups){
+    pnames[i] <- paste0("P", as.character(unique(grouping[1:N_p])[i]))
+  }
+  for (j in 1:X_groups){
+    xnames[j] <- paste0("X", as.character(unique(grouping[(N_p+1):(N_p+N_x)])[j]))
+  }
+  # Define the total parameter vector names
+  names(fitted) <- c(pnames, xnames,"CLE_f", "CLE_u")
+  # Variable for keeping which value in the fitted params vector corresponds to each coefficient
+  position = rep(NA, length(grouping))
+  for (i in 1:(length(position))){
+    if(i<=8){
+      position[i] <- which(names(fitted) == paste0("P", as.character(grouping[i])))
+    }else{
+      position[i] <- which(names(fitted) == paste0("X", as.character(grouping[i])))
+    }
+  }
+  # Run the Nelder Mead algorithmm to estimate the parameter values
+  nm_optimizer_min <- dfoptim::nmk(par = fitted, fn = obj.func,
+                                   control = list(maxfeval=100, trace=T), y_init = y_init,
+                                   time_points = time_points,
+                                   excretion_time_points =  excretion_time_points,
+                                   sample_time = sample_time,
+                                   phys_pars = phys_pars, 
+                                   position = position )
+  
+  # Extract the converged parameter values in the log space
+  params <- nm_optimizer_min$par
+  # Create the matrix of the system  
+  A <- create_ODE_matrix(phys_pars = phys_pars, fit_pars =exp(params),  position = position )
+  # Solve the ODE system using the exponential matrix method  
+  solution <-  solve_exp_matrix(x = A, time = sample_time, y_init = y_init,phys_pars = phys_pars )
+  
+  observed <- list()
+  for (i in 1:(length(df))) {
+    observed[[i]] <- cbind(time_points, df[,i])
+  }
+  observed[[i+1]] <-  cbind(excretion_time_points,excretion[,1]) #feces
+  observed[[i+2]] <-  cbind(excretion_time_points,excretion[,2]) #urine
+  names(observed) <- c(names(df), names(excretion))
+  
+  predicted <- solution
+  names(predicted) <- c("Times",names(df), "Feces", "Urine")
+  
+  #Obtain AIC for predictions vs observations
+  AIC_result <- AICc(k =length(params), predictions = predicted, observations = observed)
+  # GA solves a maximisation problem, and best model gives minimum AIC, so take opposite of AIC
+  fit_value_min <- AIC_result
+  print(paste0(" AIC value is ", fit_value_min))
+  
+  print(paste0("PBPK index is ", nm_optimizer_min$value))
+  
+  
+  
+  ####################################
+  #===================================
+  #  *** BEST BINARY PROBLEM ***  
+  #===================================
+  #####################################
+  #---------------------------
+  # Define fitting parameters 
+  #---------------------------
+  #==================
+  #5.Binary mapping 
+  #==================
+  # Function for mapping the binary number to integer
+  # Since with 4 digits numbers from 0-15 can be mapped and here we have 8 
+  # different compartments, every two integers correspond to one compartment
+  bin2int <- function(bin_seq){
+    int <- GA::binary2decimal(bin_seq)
+    if(int == 0 || int == 1){
+      return(1)
+    }else if(int == 2 || int == 3){
+      return(2)
+    }else if(int == 4 || int == 5){
+      return(3)
+    }else if(int == 6 || int == 7){
+      return(4)
+    }else if(int == 8 || int == 9){
+      return(5)
+    }else if(int == 10 || int == 11){
+      return(6)
+    }else if(int == 12 || int == 13){
+      return(7)
+    }else if(int == 14 || int == 15){
+      return(8)
+    }
+  }
+  
   
   #=============================
-  #8. Convert real to integer  
+  #6. Convert binary to grouping  
   #=============================
   # Function for converting binary into integer (from )
-  decode_ga <- function(real_num)
+  decode_ga_bin <- function(binary_num)
+  { 
+    # Convert binary encoding to gray encoding to avoid the Hamming cliff problem
+    gray_num <- GA::gray2binary(binary_num) 
+    gray_num <- binary_num 
+    
+    #Four digit binary encodes up to 15, if we are past 13, assign the value 13
+    
+    # Partition coefficient grouping
+    P1 <-bin2int(gray_num[1:4])
+    P2 <-bin2int(gray_num[5:8])
+    P3 <-bin2int(gray_num[9:12])
+    P4 <-bin2int(gray_num[13:16])
+    P5 <-bin2int(gray_num[17:20])
+    P6 <-bin2int(gray_num[21:24])
+    P7 <-bin2int(gray_num[25:28])
+    P8 <-bin2int(gray_num[29:32])
+    
+    
+    # Permeability coefficient grouping
+    X1 <-bin2int(gray_num[33:36])
+    X2 <-bin2int(gray_num[37:40])
+    X3 <-bin2int(gray_num[41:44])
+    X4 <-bin2int(gray_num[45:48])
+    X5 <-bin2int(gray_num[49:52])
+    X6 <-bin2int(gray_num[53:56])
+    X7 <-bin2int(gray_num[57:60])
+    X8 <-bin2int(gray_num[61:64])
+    
+    out <- structure(c(P1,P2,P3,P4,P5,P6,P7,P8, X1,X2,X3,X4,X5,
+                       X6,X7,X8), names = c("P1","P2","P3","P4",
+                                            "P5","P6", "P7", "P8", "X1",
+                                            "X2", "X3", "X4", "X5", "X6", "X7", "X8"))
+    return(out)
+  }
+  
+  # Nelder-Mead from dfoptim package
+  y_init <- c(dose, rep(0,19))
+  time_points <- c(1,3,7, 15, 30)*24 # hours
+  excretion_time_points <- excretion_time
+  sample_time <- seq(0, 30*24, 1)
+  # Initialise vector of physiological parameters
+  phys_pars <- create.params(compartments,mass)
+  
+  #---------------------------
+  # Define fitting parameters 
+  #---------------------------
+  N_p <-8 #   Number of partition coefficients
+  N_x <- 8#   Number of permeability coefficients
+  #---------------------------
+  # Define fitting parameters 
+  #---------------------------
+  GA_results_bin <- GA_results
+  # Convert the binary encoding to integer
+  grouping <- decode_ga_bin(GA_results_bin@solution[1,])
+  # Define size of P and X groups
+  P_groups <- length(unique(grouping[1:N_p]))  # sample size
+  X_groups <- length(unique(grouping[(N_p+1):(N_p+N_x)]))  # sample size
+  # set.seed(0)
+  # Initilise parameter values
+  fitted <- log(exp(runif(P_groups+X_groups+2, -2,2)))
+  # Initialise naming vectors
+  pnames <- rep(NA, P_groups)
+  xnames <- rep(NA, X_groups)
+  
+  #Define names for P and X groups
+  for (i in 1:P_groups){
+    pnames[i] <- paste0("P", as.character(unique(grouping[1:N_p])[i]))
+  }
+  for (j in 1:X_groups){
+    xnames[j] <- paste0("X", as.character(unique(grouping[(N_p+1):(N_p+N_x)])[j]))
+  }
+  # Define the total parameter vector names
+  names(fitted) <- c(pnames, xnames,"CLE_f", "CLE_u")
+  # Variable for keeping which value in the fitted params vector corresponds to each coefficient
+  position = rep(NA, length(grouping))
+  for (i in 1:(length(position))){
+    if(i<=8){
+      position[i] <- which(names(fitted) == paste0("P", as.character(grouping[i])))
+    }else{
+      position[i] <- which(names(fitted) == paste0("X", as.character(grouping[i])))
+    }
+  }
+  # Run the Nelder Mead algorithmm to estimate the parameter values
+  nm_optimizer_bin <- dfoptim::nmk(par = fitted, fn = obj.func,
+                                   control = list(maxfeval=2000, trace=T), y_init = y_init,
+                                   time_points = time_points,
+                                   excretion_time_points =  excretion_time_points,
+                                   sample_time = sample_time,
+                                   phys_pars = phys_pars, 
+                                   position = position )
+  
+  # Extract the converged parameter values in the log space
+  params <- nm_optimizer_bin$par
+  # Create the matrix of the system  
+  A <- create_ODE_matrix(phys_pars = phys_pars, fit_pars =exp(params),  position = position )
+  # Solve the ODE system using the exponential matrix method  
+  solution <-  solve_exp_matrix(x = A, time = sample_time, y_init = y_init,phys_pars = phys_pars )
+  
+  observed <- list()
+  for (i in 1:(length(df))) {
+    observed[[i]] <- cbind(time_points, df[,i])
+  }
+  observed[[i+1]] <-  cbind(excretion_time_points,excretion[,1]) #feces
+  observed[[i+2]] <-  cbind(excretion_time_points,excretion[,2]) #urine
+  names(observed) <- c(names(df), names(excretion))
+  
+  predicted <- solution
+  names(predicted) <- c("Times",names(df), "Feces", "Urine")
+  
+  #Obtain AIC for predictions vs observations
+  AIC_result <- AICc(k =length(params), predictions = predicted, observations = observed)
+  # GA solves a maximisation problem, and best model gives minimum AIC, so take opposite of AIC
+  print(paste0(" AIC value is ", AIC_result))
+  
+  print(paste0("PBPK index is ", nm_optimizer_bin$value))
+  
+  
+  ####################################
+  #===================================
+  #  *** BEST REAL PROBLEM ***  
+  #===================================
+  #####################################
+  #---------------------------
+  # Define fitting parameters 
+  #---------------------------
+  # Function for converting binary into integer (from )
+  decode_ga_real <- function(real_num)
   { 
     # Partition coefficient grouping
     P1 <- floor(real_num[1])
@@ -598,34 +943,16 @@ ga_fitness <- function(chromosome)
                                             "X2", "X3", "X4", "X5", "X6", "X7", "X8"))
     return(out)
   }
-  
-  ####################################
-  #===================================
-  #  ***  Main Function Content  
-  #===================================
-  #####################################
-  
-    # Nelder-Mead from dfoptim package
-  y_init <- c(dose, rep(0,19))
-  time_points <- c(1,3,7, 15, 30)*24 # hours
-  excretion_time_points <- excretion_time
-  sample_time <- seq(0, 30*24, 1)
-  # Initialise vector of physiological parameters
-  phys_pars <- create.params(compartments,mass)
-  
-  #---------------------------
-  # Define fitting parameters 
-  #---------------------------
-  N_p <-8 #   Number of partition coefficients
-  N_x <- 8#   Number of permeability coefficients
+
+  GA_results_real <- GA_results
   # Convert the binary encoding to integer
-  grouping <- decode_ga(chromosome)
+  grouping <- decode_ga_real(GA_results_real@solution[1,])
   # Define size of P and X groups
   P_groups <- length(unique(grouping[1:N_p]))  # sample size
   X_groups <- length(unique(grouping[(N_p+1):(N_p+N_x)]))  # sample size
-  set.seed(0)
+  # set.seed(0)
   # Initilise parameter values
-  fitted <- log(exp(runif(P_groups+X_groups+2, -3,3)))
+  fitted <- log(exp(runif(P_groups+X_groups+2, -2,2)))
   # Initialise naming vectors
   pnames <- rep(NA, P_groups)
   xnames <- rep(NA, X_groups)
@@ -649,15 +976,16 @@ ga_fitness <- function(chromosome)
     }
   }
   # Run the Nelder Mead algorithmm to estimate the parameter values
-  nm_optimizer_max <- dfoptim::nmk(par = fitted, fn = obj.func,
-                                   control = list(maxfeval=100), y_init = y_init,
+  nm_optimizer_real <- dfoptim::nmk(par = fitted, fn = obj.func,
+                                   control = list(maxfeval=2000, trace=T), y_init = y_init,
                                    time_points = time_points,
                                    excretion_time_points =  excretion_time_points,
                                    sample_time = sample_time,
                                    phys_pars = phys_pars, 
                                    position = position )
+  
   # Extract the converged parameter values in the log space
-  params <- nm_optimizer_max$par
+  params <- nm_optimizer_bin$par
   # Create the matrix of the system  
   A <- create_ODE_matrix(phys_pars = phys_pars, fit_pars =exp(params),  position = position )
   # Solve the ODE system using the exponential matrix method  
@@ -677,55 +1005,9 @@ ga_fitness <- function(chromosome)
   #Obtain AIC for predictions vs observations
   AIC_result <- AICc(k =length(params), predictions = predicted, observations = observed)
   # GA solves a maximisation problem, and best model gives minimum AIC, so take opposite of AIC
-  fit_value <- -AIC_result
-  return(AIC_result)
-}
-
-##############################
-#=============================
-#  ***  Genetic algorithm  ***
-#=============================
-##############################
-
-#=======================================================================
-#                    Available tuning parameters                       
-#                        (binary encoding)                             
-#=======================================================================
-
-#                            /Selection/          
-# gareal_lrSelection:Linear-rank selection
-# gareal_nlrSelection:Nonlinear-rank selection.
-# gareal_rwSelection:Proportional (roulette wheel) selection.
-# gareal_tourSelection: (Unbiased) tournament selection
-# gareal_lsSelection: Fitness proportional selection with fittness linear scaling.
-# gareal_sigmaSelection: Fitness proportional selection with Goldberg's sigma truncation scaling
-#
-#                            /Crossover/                               
-# gareal_spCrossover: Single-point crossover
-# gareal_uCrossover: Uniform crossover
-# gareal_waCrossover: Whole arithmetic crossover.
-# gareal_laCrossover: Local arithmetic crossover.
-# gareal_blxCrossover: Blend crossover.
-#
-#                           /Mutation/
-# gareal_raMutation: Uniform random mutation
-# gareal_nraMutation: Nonuniform random mutation.
-# gareal_rsMutation: Random mutation around the solution.
-
-GA_results <- GA::ga(type = "real", fitness = ga_fitness, 
-                     lower = rep(1,16), upper = rep(8.999,16),  
-                     population = "gareal_Population",
-                     selection = "gareal_lsSelection",
-                     crossover = "gareal_laCrossover", 
-                     mutation = "gareal_raMutation",
-                     popSize = 16, #the population size.
-                     pcrossover = 0.8, #the probability of crossover between pairs of chromosomes.
-                     pmutation = 0.3, #the probability of mutation in a parent chromosome
-                     elitism = 1, #the number of best fitness individuals to survive at each generation. 
-                     maxiter = 100, #the maximum number of iterations to run before the GA search is halted.
-                     run = 100, # the number of consecutive generations without any improvement
-                     #in the best fitness value before the GA is stopped.
-                     keepBest = TRUE, # best solutions at each iteration should be saved in a slot called bestSol.
-                     parallel = (parallel::detectCores()),
-                     monitor = plot,
-                     seed = 1234)
+  fit_value_real <- -AIC_result
+  print(paste0("Minus AIC value is ", fit_value_real))
+  
+  print(paste0("PBPK index is ", nm_optimizer_real$value))
+  
+  

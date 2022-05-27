@@ -30,10 +30,10 @@ data_list <- list("1" = runif(16,1,8.99),
                   "5" = runif(16,1,8.99),
                   "6" = runif(16,1,8.99),
                   "7" = runif(16,1,8.99),
-                   "6" = runif(16,1,8.99))
+                   "8" = runif(16,1,8.99))
 
 start_time = Sys.time()
-clus <- parallel::makeCluster(parallel::detectCores()-2)
+clus <- parallel::makeCluster(parallel::detectCores())
 parallel::clusterExport(clus,"ga_fitness")
 re <-parallel::parLapply(clus,data_list,ga_fitness)
 end_time = Sys.time()
