@@ -355,7 +355,7 @@ create.position <- function(grouping){
 #===============
 # Load data  
 #===============
-setwd("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm")
+setwd("C:/Users/ptsir/Documents/GitHub/PBPK_Genetic_Algorithm")
 
 dose_kg <- 10 # mg/kg rat body
 mass <- 250 # g  
@@ -406,12 +406,12 @@ compartments <- list( "RoB"="RoB","Heart"="Heart", "Kidneys"="Kidneys", "Brain"=
 y_init <- c(dose, rep(0,19))
 time_points <- c(1,3,7, 15, 30)*24 # hours
 excretion_time_points <- excretion_time
-sample_time <- seq(0, 30*24, 1)
+sample_time <- seq(0, 30*24, 0.01)
 # Initialise vector of physiological parameters
 phys_pars <- create.params(compartments,mass)
 
 
-load("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm/aic_results.RData")
+load("C:/Users/ptsir/Documents/GitHub/PBPK_Genetic_Algorithm/aic_results.RData")
 
 # Load parameters from Nelder-Mead
 # Note that the parameters are sampled in the log space
@@ -450,11 +450,11 @@ create.plots <- function(compartment){
     excreta <- compartment %in% c("Feces", "Urine")
     ggplot(data = solution_max)+
     geom_line( aes_string(x= "Time", y= rlang::expr(!!compartment), colour=shQuote("Max params")), 
-               size=0.7) +
+               size=1.5) +
     geom_line(data=solution_ga, aes_string(x= "Time", y= rlang::expr(!!compartment),
-                                    colour=shQuote("GA params")), size=0.7) +
+                                    colour=shQuote("GA params")), size=1.5) +
     geom_point(data=observations, aes_string(x="Time", y= rlang::expr(!!compartment),
-                                      colour=shQuote("Observations")), size=0.7)+
+                                      colour=shQuote("Observations")), size=4)+
     labs(title = rlang::expr(!!compartment), 
     y = ifelse(excreta,"TiO2 (mg)","TiO2 (mg/g tissue)" ),
     x = "Time (hours)")+
@@ -472,4 +472,8 @@ p7 <-  plots[[7]]
 p8 <-  plots[[8]]
 p9 <-  plots[[9]]
 p10 <-  plots[[10]]
-gridExtra::grid.arrange(p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,nrow = 4, ncol=3)
+gridExtra::grid.arrange(p1,p2,p3,p4,nrow = 2)
+gridExtra::grid.arrange(p5,p6,p7,p8,nrow = 2)
+gridExtra::grid.arrange(p9,p10,nrow = 2)
+
+
