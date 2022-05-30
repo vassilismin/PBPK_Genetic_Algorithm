@@ -473,9 +473,9 @@
       }
     
       # root mean of the square of observed values
-      MEt <- Et/N
+      MEt <- sqrt(Et/N)
       # root mean of the square of simulated values
-      MSt <- St/N
+      MSt <- sqrt(St/N)
       
       I[i] <- (MEt + MSt)/2   
     }
@@ -734,7 +734,7 @@
   fit_value_max <- AIC_result
   print(paste0(" AIC value is ", fit_value_max))
   
-  print(paste0("PBPK index is ", nm_optimizer_max$value))
+  print(paste0("New fitness metric is ", nm_optimizer_max$value))
   
   
   
