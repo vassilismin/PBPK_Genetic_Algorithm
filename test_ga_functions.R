@@ -1,4 +1,4 @@
-binary_test <- x <- rbinom(n=104, size=1, prob=0.5) 
+chromosome <- rbinom(n=64, size=1, prob=0.5) 
 print(binary_test)
 print(decode_ga(binary_test))
 
