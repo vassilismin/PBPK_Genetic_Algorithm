@@ -473,9 +473,9 @@
       }
     
       # root mean of the square of observed values
-      MEt <- sqrt(Et/N)
+      MEt <- Et/N
       # root mean of the square of simulated values
-      MSt <- sqrt(St/N)
+      MSt <- St/N
       
       I[i] <- (MEt + MSt)/2   
     }
@@ -677,8 +677,10 @@
   P_groups <- length(unique(grouping[1:N_p]))  # sample size
   X_groups <- length(unique(grouping[(N_p+1):(N_p+N_x)]))  # sample size
  # set.seed(0)
-  # Initilise parameter values
-  fitted <- log(exp(runif(P_groups+X_groups+2, -2,2)))
+    
+  # Initilise parameter vector
+  fitted <- rep(NA,P_groups+X_groups+2)
+      
   # Initialise naming vectors
   pnames <- rep(NA, P_groups)
   xnames <- rep(NA, X_groups)
@@ -701,14 +703,21 @@
       position[i] <- which(names(fitted) == paste0("X", as.character(grouping[i])))
     }
   }
+  # Some initialisations fail to obtain solution, so resample until you do
+  nm_optimizer_max <- NULL
+  while( is.null(nm_optimizer_max) ) {
+    fitted <- log(exp(runif(P_groups+X_groups+2, -2,2)))
+    try(
   # Run the Nelder Mead algorithmm to estimate the parameter values
-  nm_optimizer_max <- dfoptim::nmk(par = fitted, fn = obj.func,
+    nm_optimizer_max <- dfoptim::nmk(par = fitted, fn = obj.func,
                                    control = list(maxfeval=2000, trace=T), y_init = y_init,
                                    time_points = time_points,
                                    excretion_time_points =  excretion_time_points,
                                    sample_time = sample_time,
                                    phys_pars = phys_pars, 
                                    position = position )
+    )
+  } 
 
   # Extract the converged parameter values in the log space
   params <- nm_optimizer_max$par
@@ -753,7 +762,7 @@
   X_groups <- length(unique(grouping[(N_p+1):(N_p+N_x)]))  # sample size
   # set.seed(0)
   # Initilise parameter values
-  fitted <- log(exp(runif(P_groups+X_groups+2, -2,2)))
+  fitted <- rep(NA,P_groups+X_groups+2)
   # Initialise naming vectors
   pnames <- rep(NA, P_groups)
   xnames <- rep(NA, X_groups)
@@ -776,14 +785,21 @@
       position[i] <- which(names(fitted) == paste0("X", as.character(grouping[i])))
     }
   }
-  # Run the Nelder Mead algorithmm to estimate the parameter values
-  nm_optimizer_min <- dfoptim::nmk(par = fitted, fn = obj.func,
-                                   control = list(maxfeval=100, trace=T), y_init = y_init,
-                                   time_points = time_points,
-                                   excretion_time_points =  excretion_time_points,
-                                   sample_time = sample_time,
-                                   phys_pars = phys_pars, 
-                                   position = position )
+  # Some initialisations fail to obtain solution, so resample until you do
+  nm_optimizer_min <- NULL
+  while( is.null(nm_optimizer_min) ) {
+    fitted <- log(exp(runif(P_groups+X_groups+2, -2,2)))
+    try(
+      # Run the Nelder Mead algorithmm to estimate the parameter values
+      nm_optimizer_min <- dfoptim::nmk(par = fitted, fn = obj.func,
+                                       control = list(maxfeval=2000, trace=T), y_init = y_init,
+                                       time_points = time_points,
+                                       excretion_time_points =  excretion_time_points,
+                                       sample_time = sample_time,
+                                       phys_pars = phys_pars, 
+                                       position = position )
+    )
+  }
   
   # Extract the converged parameter values in the log space
   params <- nm_optimizer_min$par
@@ -809,7 +825,7 @@
   fit_value_min <- AIC_result
   print(paste0(" AIC value is ", fit_value_min))
   
-  print(paste0("Fitness metric is ", nm_optimizer_min$value))
+  print(paste0("New fitness metric is ", nm_optimizer_min$value))
   
   
   
@@ -913,7 +929,7 @@
   X_groups <- length(unique(grouping[(N_p+1):(N_p+N_x)]))  # sample size
   # set.seed(0)
   # Initilise parameter values
-  fitted <- log(exp(runif(P_groups+X_groups+2, -2,2)))
+  fitted <- rep(NA,P_groups+X_groups+2)
   # Initialise naming vectors
   pnames <- rep(NA, P_groups)
   xnames <- rep(NA, X_groups)
@@ -936,14 +952,21 @@
       position[i] <- which(names(fitted) == paste0("X", as.character(grouping[i])))
     }
   }
-  # Run the Nelder Mead algorithmm to estimate the parameter values
-  nm_optimizer_bin <- dfoptim::nmk(par = fitted, fn = obj.func,
-                                   control = list(maxfeval=2000, trace=T), y_init = y_init,
-                                   time_points = time_points,
-                                   excretion_time_points =  excretion_time_points,
-                                   sample_time = sample_time,
-                                   phys_pars = phys_pars, 
-                                   position = position )
+  # Some initialisations fail to obtain solution, so resample until you do
+  nm_optimizer_bin <- NULL
+  while( is.null(nm_optimizer_bin) ) {
+    fitted <- log(exp(runif(P_groups+X_groups+2, -2,2)))
+    try(
+      # Run the Nelder Mead algorithmm to estimate the parameter values
+      nm_optimizer_bin <- dfoptim::nmk(par = fitted, fn = obj.func,
+                                       control = list(maxfeval=2000, trace=T), y_init = y_init,
+                                       time_points = time_points,
+                                       excretion_time_points =  excretion_time_points,
+                                       sample_time = sample_time,
+                                       phys_pars = phys_pars, 
+                                       position = position )
+    )
+  }
   
   # Extract the converged parameter values in the log space
   params <- nm_optimizer_bin$par
@@ -1018,7 +1041,7 @@
   X_groups <- length(unique(grouping[(N_p+1):(N_p+N_x)]))  # sample size
   # set.seed(0)
   # Initilise parameter values
-  fitted <- log(exp(runif(P_groups+X_groups+2, -2,2)))
+  fitted <- rep(NA,P_groups+X_groups+2)
   # Initialise naming vectors
   pnames <- rep(NA, P_groups)
   xnames <- rep(NA, X_groups)
@@ -1041,17 +1064,24 @@
       position[i] <- which(names(fitted) == paste0("X", as.character(grouping[i])))
     }
   }
-  # Run the Nelder Mead algorithmm to estimate the parameter values
-  nm_optimizer_real <- dfoptim::nmk(par = fitted, fn = obj.func,
-                                   control = list(maxfeval=2000, trace=T), y_init = y_init,
-                                   time_points = time_points,
-                                   excretion_time_points =  excretion_time_points,
-                                   sample_time = sample_time,
-                                   phys_pars = phys_pars, 
-                                   position = position )
+  # Some initialisations fail to obtain solution, so resample until you do
+  nm_optimizer_real <- NULL
+  while( is.null(nm_optimizer_real) ) {
+    fitted <- log(exp(runif(P_groups+X_groups+2, -2,2)))
+    try(
+      # Run the Nelder Mead algorithmm to estimate the parameter values
+      nm_optimizer_real <- dfoptim::nmk(par = fitted, fn = obj.func,
+                                       control = list(maxfeval=2000, trace=T), y_init = y_init,
+                                       time_points = time_points,
+                                       excretion_time_points =  excretion_time_points,
+                                       sample_time = sample_time,
+                                       phys_pars = phys_pars, 
+                                       position = position )
+    )
+  }
   
   # Extract the converged parameter values in the log space
-  params <- nm_optimizer_bin$par
+  params <- nm_optimizer_real$par
   # Create the matrix of the system  
   A <- create_ODE_matrix(phys_pars = phys_pars, fit_pars =exp(params),  position = position )
   # Solve the ODE system using the exponential matrix method  
