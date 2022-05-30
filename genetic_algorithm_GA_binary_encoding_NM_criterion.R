@@ -1,4 +1,4 @@
-# Write a description
+# Here the GA select based on the NM output
 
 
 #==========================
@@ -628,7 +628,7 @@ ga_fitness <- function(chromosome)
     }else if(is.null(n) & !is.null(times)){
       n <- length(observations) * lengths(times)
     }
-    AICc <- n*log(RSS(predictions,observations,times)/n) + 2*k + (2*k*(k+1))/(n-k-1)
+    AICc <- -2*log(RSS(predictions,observations,times)/n) + 2*k + (2*k*(k+1))/(n-k-1)
     return(AICc)
   }
   
@@ -678,42 +678,21 @@ ga_fitness <- function(chromosome)
   position = rep(NA, length(grouping))
   for (i in 1:(length(position))){
     if(i<=8){
-    position[i] <- which(names(fitted) == paste0("P", as.character(grouping[i])))
+      position[i] <- which(names(fitted) == paste0("P", as.character(grouping[i])))
     }else{
       position[i] <- which(names(fitted) == paste0("X", as.character(grouping[i])))
     }
   }
   # Run the Nelder Mead algorithmm to estimate the parameter values
-  nm_optimizer_max <- dfoptim::nmk(par = fitted, fn = obj.func,
-                          control = list(maxfeval=300), y_init = y_init,
-                          time_points = time_points,
-                          excretion_time_points =  excretion_time_points,
-                          sample_time = sample_time,
-                          phys_pars = phys_pars, 
-                          position = position )
-  # Extract the converged parameter values in the log space
-  params <- nm_optimizer_max$par
-  # Create the matrix of the system  
-  A <- create_ODE_matrix(phys_pars = phys_pars, fit_pars =exp(params),  position = position )
-  # Solve the ODE system using the exponential matrix method  
-  solution <-  solve_exp_matrix(x = A, time = sample_time, y_init = y_init,phys_pars = phys_pars )
+  nm_optimizer<- dfoptim::nmk(par = fitted, fn = obj.func,
+                                   control = list(maxfeval=300), y_init = y_init,
+                                   time_points = time_points,
+                                   excretion_time_points =  excretion_time_points,
+                                   sample_time = sample_time,
+                                   phys_pars = phys_pars, 
+                                   position = position )
  
-  observed <- list()
-  for (i in 1:(length(df))) {
-    observed[[i]] <- cbind(time_points, df[,i])
-  }
-  observed[[i+1]] <-  cbind(excretion_time_points,excretion[,1]) #feces
-  observed[[i+2]] <-  cbind(excretion_time_points,excretion[,2]) #urine
-  names(observed) <- c(names(df), names(excretion))
-  
-  predicted <- solution
-  names(predicted) <- c("Times",names(df), "Feces", "Urine")
-
-  #Obtain AIC for predictions vs observations
-  AIC_result <- AICc(k =length(params), predictions = predicted, observations = observed)
-  # GA solves a maximisation problem, and best model gives minimum AIC, so take opposite of AIC
-  fit_value <- -AIC_result
-  return(fit_value)
+  return(-nm_optimizer$value)
 }
 mfitness<- memoise::memoise(ga_fitness)
 
@@ -742,19 +721,19 @@ mfitness<- memoise::memoise(ga_fitness)
 # gabin_raMutation: Uniform random mutation
 count <- 0
 GA_results <- GA::ga(type = "binary", fitness = mfitness, 
-          nBits = 4*8*2,  
-          population = "gabin_Population",
-          selection = "gabin_rwSelection",
-          crossover = "gabin_spCrossover", 
-          mutation = "gabin_raMutation",
-          popSize =  36, #the population size.
-          pcrossover = 0.9, #the probability of crossover between pairs of chromosomes.
-          pmutation = 0.2, #the probability of mutation in a parent chromosome
-          elitism = 4, #the number of best fitness individuals to survive at each generation. 
-          maxiter = 100, #the maximum number of iterations to run before the GA search is halted.
-          run = 30, # the number of consecutive generations without any improvement
-          #in the best fitness value before the GA is stopped.
-          keepBest = TRUE, # best solutions at each iteration should be saved in a slot called bestSol.
-          parallel = (parallel::detectCores()),
-          monitor =plot,
-          seed = 1234)
+                     nBits = 4*8*2,  
+                     population = "gabin_Population",
+                     selection = "gabin_rwSelection",
+                     crossover = "gabin_spCrossover", 
+                     mutation = "gabin_raMutation",
+                     popSize =  24, #the population size.
+                     pcrossover = 0.9, #the probability of crossover between pairs of chromosomes.
+                     pmutation = 0.2, #the probability of mutation in a parent chromosome
+                     elitism = 5, #the number of best fitness individuals to survive at each generation. 
+                     maxiter = 100, #the maximum number of iterations to run before the GA search is halted.
+                     run = 30, # the number of consecutive generations without any improvement
+                     #in the best fitness value before the GA is stopped.
+                     keepBest = TRUE, # best solutions at each iteration should be saved in a slot called bestSol.
+                     parallel = (parallel::detectCores()),
+                     monitor =plot,
+                     seed = 1234)
