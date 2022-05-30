@@ -1,4 +1,4 @@
-# This script calculates the AIC and PBPK index of the maximum problem
+# This script calculates the AIC and PBPK index of the maximum, minimum and GA problem
 
 
   #===============
