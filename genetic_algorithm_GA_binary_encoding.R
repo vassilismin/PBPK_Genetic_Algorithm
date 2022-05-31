@@ -538,7 +538,7 @@ ga_fitness <- function(chromosome)
       predicted[[i+1]] <- excr_solution[,1] #feces
       predicted[[i+2]] <- excr_solution[,2] #urine
       
-      discrepancy <- pbpk.index(observed, predicted)
+      discrepancy <- fitness.metric(observed, predicted)
       
       return(discrepancy)
     })
@@ -780,11 +780,11 @@ ga_fitness <- function(chromosome)
   # Some initialisations fail to obtain solution, so resample until you do
   nm_optimizer <- NULL
   while( is.null(nm_optimizer) ) {
-    fitted <- log(exp(runif(P_groups+X_groups+2, -3,3)))
+    fitted <- log(exp(runif(P_groups+X_groups+2, -2,2)))
     try(
       # Run the Nelder Mead algorithmm to estimate the parameter values
       nm_optimizer<- dfoptim::nmk(par = fitted, fn = obj.func,
-                                  control = list(maxfeval=300), y_init = y_init,
+                                  control = list(maxfeval=400), y_init = y_init,
                                   time_points = time_points,
                                   excretion_time_points =  excretion_time_points,
                                   sample_time = sample_time,
@@ -852,9 +852,9 @@ GA_results <- GA::ga(type = "binary", fitness = ga_fitness,
           popSize =  48, #the population size.
           pcrossover = 0.9, #the probability of crossover between pairs of chromosomes.
           pmutation = 0.2, #the probability of mutation in a parent chromosome
-          elitism =2, #the number of best fitness individuals to survive at each generation. 
-          maxiter = 100, #the maximum number of iterations to run before the GA search is halted.
-          run = 30, # the number of consecutive generations without any improvement
+          elitism =5, #the number of best fitness individuals to survive at each generation. 
+          maxiter = 150, #the maximum number of iterations to run before the GA search is halted.
+          run = 50, # the number of consecutive generations without any improvement
           #in the best fitness value before the GA is stopped.
           keepBest = TRUE, # best solutions at each iteration should be saved in a slot called bestSol.
           parallel = (parallel::detectCores()),

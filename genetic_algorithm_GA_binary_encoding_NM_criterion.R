@@ -781,7 +781,7 @@ ga_fitness <- function(chromosome)
     try(
       # Run the Nelder Mead algorithmm to estimate the parameter values
       nm_optimizer<- dfoptim::nmk(par = fitted, fn = obj.func,
-                                  control = list(maxfeval=100), y_init = y_init,
+                                  control = list(maxfeval=400), y_init = y_init,
                                   time_points = time_points,
                                   excretion_time_points =  excretion_time_points,
                                   sample_time = sample_time,
@@ -827,7 +827,7 @@ GA_results <- GA::ga(type = "binary", fitness = ga_fitness,
                      popSize =  24, #the population size.
                      pcrossover = 0.9, #the probability of crossover between pairs of chromosomes.
                      pmutation = 0.2, #the probability of mutation in a parent chromosome
-                     elitism = 5, #the number of best fitness individuals to survive at each generation. 
+                     elitism = 2, #the number of best fitness individuals to survive at each generation. 
                      maxiter = 100, #the maximum number of iterations to run before the GA search is halted.
                      run = 30, # the number of consecutive generations without any improvement
                      #in the best fitness value before the GA is stopped.
