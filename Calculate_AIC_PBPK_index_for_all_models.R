@@ -4,7 +4,7 @@
   #===============
   # Load data  
   #===============
-  setwd("C:/Users/ptsir/Documents/GitHub/PBPK_Genetic_Algorithm")
+  setwd("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm")
   
   dose_kg <- 10 # mg/kg rat body
   mass <- 250 # g  
@@ -437,7 +437,7 @@
   #===============
   
   ############# Calculate PBPK indices #############
-  # pbpk.index a function the returns the compartment and consolidated (Total) discrepancy index
+  # fitness.metric function the returns the compartment and consolidated (Total) discrepancy index
   # of a PBPK model, given some experimental data. It follows the paper of Krishnan et al.1995.
   # observed: list of vectors containing the experimental data
   # predictions: list of vectors containing the predicted data
@@ -473,11 +473,11 @@
       }
     
       # root mean of the square of observed values
-      MEt <- Et/N
+      RMEt <- sqrt(Et/N)
       # root mean of the square of simulated values
-      MSt <- St/N
+     RMSt <- sqrt( St/N)
       
-      I[i] <- (MEt + MSt)/2   
+      I[i] <- (RMEt + RMSt)/2   
     }
     # Total number of observations
     Ntot <- sum(N_obs)
@@ -706,11 +706,11 @@
   # Some initialisations fail to obtain solution, so resample until you do
   nm_optimizer_max <- NULL
   while( is.null(nm_optimizer_max) ) {
-    fitted <- log(exp(runif(P_groups+X_groups+2, -2,2)))
+    fitted <- log(exp(rnorm(P_groups+X_groups+2,0,1)))
     try(
   # Run the Nelder Mead algorithmm to estimate the parameter values
     nm_optimizer_max <- dfoptim::nmk(par = fitted, fn = obj.func,
-                                   control = list(maxfeval=2000, trace=T), y_init = y_init,
+                                   control = list(maxfeval=400, trace=T), y_init = y_init,
                                    time_points = time_points,
                                    excretion_time_points =  excretion_time_points,
                                    sample_time = sample_time,

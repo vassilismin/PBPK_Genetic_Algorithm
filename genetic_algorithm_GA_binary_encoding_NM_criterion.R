@@ -1,4 +1,4 @@
-# Here the GA select based on the NM output
+# Here the GA select based on the new fitness metric
 
 
 #==========================
@@ -19,7 +19,7 @@ ga_fitness <- function(chromosome)
   
   # Load raw data from paper Xie et al.2011
   df <- openxlsx::read.xlsx("TiO2_iv_rat.xlsx", sheet = 1, colNames = T, rowNames = T) # TiO2 NPs %ID/g of tissue  (Table 1)
-  excretion <- openxlsx::read.xlsx("Cummulative_Excretion.xlsx", sheet = 1, colNames = T, rowNames = F) # accumulated excretory rate, expressed as %ID
+  excretion <- openxlsx::read.xlsx("Cummulative_Excretion.xlsx", sheet = 2, colNames = T, rowNames = F) # accumulated excretory rate, expressed as %ID
   excretion_time <- round(excretion[,1])*24 # hours
   excretion <- excretion[,c(2:3)]
   
@@ -438,7 +438,72 @@ ga_fitness <- function(chromosome)
     return(Ic)
     #return(list(Total_index = Ic, Compartment_index= I))
   }
+  #===============
+  #4. Improved fitness metric  
+  #===============
   
+  ############# Calculate PBPK indices #############
+  # fitness.metricfunction the returns the compartment and consolidated (Total) discrepancy index
+  # of a PBPK model, given some experimental data. It follows the paper of Krishnan et al.1995.
+  # observed: list of vectors containing the experimental data
+  # predictions: list of vectors containing the predicted data
+  # names of the compartments
+  
+
+  fitness.metric <- function(observed, predicted, comp.names =NULL){
+    # Check if the user provided the correct input format
+    if (!is.list(observed) || !is.list(predicted)){
+      stop(" The observations and predictions must be lists")
+    }
+    # Check if the user provided equal length lists
+    if (length(observed) != length(predicted)){
+      stop(" The observations and predictions must have the same compartments")
+    }
+    Ncomp <- length(observed) # Number of compartments
+    I <- rep(NA, Ncomp) # Compartment discrepancy index
+    N_obs <- rep(NA, Ncomp) #Number of observations per compartment
+    #loop over the compartments
+    for (i in 1:Ncomp){
+      Et <- 0 #relative error with observations
+      St <- 0  #relative error with simulations
+      N <- length(observed[[i]]) # number of observations for compartment i
+      # Check if observations and predictions have equal length
+      if(N != length(predicted[[i]])){
+        stop(paste0("Compartment ",i," had different length in the observations and predictions"))
+      }
+      N_obs[i] <- N # populate the N_obs vector
+      for (j in 1:N){
+        # sum of relative squared errors (error = observed - predicted)
+        Et <- Et + ( abs(observed[[i]][j] - predicted[[i]][j])  / observed[[i]][j] )  ^2
+        St <- St + ( abs(observed[[i]][j] - predicted[[i]][j])  / predicted[[i]][j] )  ^2
+      }
+      
+      # root mean of the square of observed values
+      RMEt <- sqrt(Et/N)
+      # root mean of the square of simulated values
+      RMSt <- sqrt( St/N)
+      
+      I[i] <- (RMEt + RMSt)/2   
+    }
+    # Total number of observations
+    Ntot <- sum(N_obs)
+    # Initialise the consolidated discrepancy index
+    Ic <-0
+    for (i in 1:Ncomp){
+      # Give weight to compartments with more observations (more information)
+      Ic <- Ic +  I[i]* N_obs[i]/Ntot
+    }
+    # Name the list of compartment discrepancy indices
+    if ( !is.null(comp.names)){
+      names(I) <- comp.names
+    }else if (!is.null(names(observed))){
+      names(I) <- names(observed)
+    } else if (!is.null(names(predicted)) && is.null(comp.names) ){
+      names(I) <- names(predicted)
+    }
+    return(Ic)
+    #return(list(Total_index = Ic, Compartment_index= I))
+  }
   
   
   #======================
@@ -472,7 +537,7 @@ ga_fitness <- function(chromosome)
       predicted[[i+1]] <- excr_solution[,1] #feces
       predicted[[i+2]] <- excr_solution[,2] #urine
       
-      discrepancy <- pbpk.index(observed, predicted)
+      discrepancy <- fitness.metric(observed, predicted)
       
       return(discrepancy)
     })
@@ -570,17 +635,40 @@ ga_fitness <- function(chromosome)
       if(all(observations[[i]][,1] == observations[[i+1]][,1])){
         different_times <- FALSE
       }else{
+        # If at least one compartmenthas different time points, break
         different_times <- TRUE
         break
       }
     }
+    
+    # Set the observation times vector if all observations have the same time points
+    if(different_times == FALSE){
+      observations_time <- observations[[1]][,1]
+    }
+    
+    # If user provided time points but observations have different time points, then times can't be used  
     if (!is.null(times) & (different_times == TRUE)){
       warning("parameter 'times' will not be used because different time vectors have
               been detected in the observations provided")
     }
     
+    # If user provided time points that are not part of the observation time points, then times can't be used  
+    if (!is.null(times) & (different_times == FALSE)){
+      if (sum(times%in%observations_time)<length(times)){
+        warning("parameter 'times' will not be used because it contains time points 
+                that are not part of the observations ")
+        times <- observations_time
+      }
+    }
+    
+    # If user did not provide time points, then keep the time points of the observations
+    if (is.null(times) & (different_times == FALSE)){
+      times <- observations_time
+    }
+    
     predicted <- list()
-    if(different_times){ # if the data time points for each compartment are different, ignore times parameter and keep all the values from the data
+    if(different_times == TRUE){ 
+      # if the data time points for each compartment are different, ignore times parameter and keep all the values from the data
       for(i in colnames(predictions)[2:dim(predictions)[2]]){
         predicted[[i]] <- predictions[which(predictions$Time %in% observations[[i]][,1]) ,i]
       }
@@ -593,14 +681,19 @@ ga_fitness <- function(chromosome)
     
     observed <- list()
     for (i in 1:length(observations)) {
-      observed[[i]] <- observations[[i]][,2] #drop the column of time for each compartment and keep ony the data
+      # If user provided only one point the observations have collapsed into a vector
+      if(length(times)==1){
+        observed[[i]] <- observations[[i]][2] #drop the column of time for each compartment and keep ony the data
+      }else{
+        observed[[i]] <- observations[[i]][,2] #drop the column of time for each compartment and keep ony the data
+      }
     }
     
     res <- list() 
     for (i in 1:length(observed)) { # loop for each compartment
       res[[i]] <- observed[[i]] - predicted[[i]] # calculate the residuals of each compartment and store them to lists
     }
-    names(res) <- names(observed)
+    names(res) <- names(predictions[2:length(names(predictions))])
     
     return(sum((unlist(res))^2)) # Unlist all residuals and sum their squared values
     }
@@ -618,7 +711,6 @@ ga_fitness <- function(chromosome)
   # observations should be the same.
   AICc <- function(k, predictions, observations, n = NULL, times=NULL){
     
-    
     # calculate n in case it is not given
     if(is.null(n) & is.null(times)){
       n <- 0 
@@ -628,7 +720,8 @@ ga_fitness <- function(chromosome)
     }else if(is.null(n) & !is.null(times)){
       n <- length(observations) * lengths(times)
     }
-    AICc <- -2*log(RSS(predictions,observations,times)/n) + 2*k + (2*k*(k+1))/(n-k-1)
+    print(paste0("RSS is: ",RSS(predictions,observations,times)))
+    AICc <- n*log(RSS(predictions,observations,times)/n) + 2*k + (2*k*(k+1))/(n-k-1)
     return(AICc)
   }
   
@@ -638,8 +731,6 @@ ga_fitness <- function(chromosome)
   #===================================
   #####################################
   
-  count = count+1
-  print(paste0("The current chromosome is chromosome ", count))
   # Nelder-Mead from dfoptim package
   y_init <- c(dose, rep(0,19))
   time_points <- c(1,3,7, 15, 30)*24 # hours
@@ -658,9 +749,9 @@ ga_fitness <- function(chromosome)
   # Define size of P and X groups
   P_groups <- length(unique(grouping[1:N_p]))  # sample size
   X_groups <- length(unique(grouping[(N_p+1):(N_p+N_x)]))  # sample size
-  set.seed(0)
+  #set.seed(0)
   # Initilise parameter values
-  fitted <- log(exp(runif(P_groups+X_groups+2, -2,2)))
+  fitted <- rep(NA,(P_groups+X_groups+2))
   # Initialise naming vectors
   pnames <- rep(NA, P_groups)
   xnames <- rep(NA, X_groups)
@@ -683,18 +774,26 @@ ga_fitness <- function(chromosome)
       position[i] <- which(names(fitted) == paste0("X", as.character(grouping[i])))
     }
   }
-  # Run the Nelder Mead algorithmm to estimate the parameter values
-  nm_optimizer<- dfoptim::nmk(par = fitted, fn = obj.func,
-                                   control = list(maxfeval=300), y_init = y_init,
-                                   time_points = time_points,
-                                   excretion_time_points =  excretion_time_points,
-                                   sample_time = sample_time,
-                                   phys_pars = phys_pars, 
-                                   position = position )
+  # Some initialisations fail to obtain solution, so resample until you do
+  nm_optimizer <- NULL
+  while( is.null(nm_optimizer) ) {
+    fitted <- log(exp(runif(P_groups+X_groups+2, -1,1)))
+    try(
+      # Run the Nelder Mead algorithmm to estimate the parameter values
+      nm_optimizer<- dfoptim::nmk(par = fitted, fn = obj.func,
+                                  control = list(maxfeval=400), y_init = y_init,
+                                  time_points = time_points,
+                                  excretion_time_points =  excretion_time_points,
+                                  sample_time = sample_time,
+                                  phys_pars = phys_pars, 
+                                  position = position )
+    )
+  } 
+ 
  
   return(-nm_optimizer$value)
 }
-mfitness<- memoise::memoise(ga_fitness)
+#mfitness<- memoise::memoise(ga_fitness)
 
 ##############################
 #=============================
@@ -719,8 +818,7 @@ mfitness<- memoise::memoise(ga_fitness)
 #
 #                           /Mutation/
 # gabin_raMutation: Uniform random mutation
-count <- 0
-GA_results <- GA::ga(type = "binary", fitness = mfitness, 
+GA_results <- GA::ga(type = "binary", fitness = ga_fitness, 
                      nBits = 4*8*2,  
                      population = "gabin_Population",
                      selection = "gabin_rwSelection",
@@ -729,7 +827,7 @@ GA_results <- GA::ga(type = "binary", fitness = mfitness,
                      popSize =  24, #the population size.
                      pcrossover = 0.9, #the probability of crossover between pairs of chromosomes.
                      pmutation = 0.2, #the probability of mutation in a parent chromosome
-                     elitism = 5, #the number of best fitness individuals to survive at each generation. 
+                     elitism = 2, #the number of best fitness individuals to survive at each generation. 
                      maxiter = 100, #the maximum number of iterations to run before the GA search is halted.
                      run = 30, # the number of consecutive generations without any improvement
                      #in the best fitness value before the GA is stopped.
@@ -737,3 +835,4 @@ GA_results <- GA::ga(type = "binary", fitness = mfitness,
                      parallel = (parallel::detectCores()),
                      monitor =plot,
                      seed = 1234)
+save.image(file = "ga_bin_results_random_initialisation_new_fitness.RData")
