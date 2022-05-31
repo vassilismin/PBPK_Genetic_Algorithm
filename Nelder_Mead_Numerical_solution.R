@@ -1,5 +1,5 @@
 library(deSolve)
-setwd("C:/Users/vassi/Documents/GitHub/PBPK_Genetic_Algorithm")
+setwd("C:/Users/ptsir/Documents/GitHub/PBPK_Genetic_Algorithm")
 
 dose_kg <- 10 # mg/kg rat body
 mass <- 250 # g  
@@ -182,6 +182,7 @@ create.inits <- function(parameters, dose){
     
     M_cap_ht<-0; M_cap_lu<-0; M_cap_li<-0; M_cap_spl<-0; M_cap_ki<-0; M_cap_git<-0; M_cap_bone<-0; M_cap_rob<-0;
     
+    M_lumen <- 0;
     M_ven<-dose; M_art<-0
     M_feces<-0; M_urine<-0 
     
@@ -195,6 +196,7 @@ create.inits <- function(parameters, dose){
              "M_cap_ki" = M_cap_ki, "M_cap_git" = M_cap_git, 
              "M_cap_bone" = M_cap_bone,"M_cap_rob"=M_cap_rob,
              
+             "M_lumen" = M_lumen,
              "M_ven" = M_ven, "M_art" = M_art, "M_feces" = M_feces, "M_urine" = M_urine))
     
   })
@@ -254,20 +256,22 @@ ode.func <- function(time, inits, params){
     dM_lu <-  x_lu*Q_total*(C_cap_lu - C_lu/P_lu)
     
     # Liver 
-    dM_cap_li <- Q_li*(C_art - C_cap_li) + Q_spl*(C_cap_spl - C_cap_li) - x_li*(Q_li)*(C_cap_li - C_li/P_li)
-    dM_li <- x_li*Q_li*(C_cap_li - C_li/P_li) 
+    dM_cap_li <- Q_li*(C_art - C_cap_li) + Q_spl*(C_cap_spl - C_cap_li) + Q_git*(C_cap_git - C_cap_li) -
+                 x_li*(Q_li)*(C_cap_li - C_li/P_li)
+    dM_li <- x_li*Q_li*(C_cap_li - C_li/P_li) - CLE_h*M_li
     
     # Spleen
     dM_cap_spl <- Q_spl*(C_art - C_cap_spl) - x_spl*Q_spl*(C_cap_spl - C_spl/P_spl)
     dM_spl <- x_spl*Q_spl*(C_cap_spl - C_spl/P_spl) 
     
     # Kidneys
-    dM_cap_ki <- Q_ki*(C_art - C_cap_ki) - x_ki*Q_ki*(C_cap_ki - C_ki/P_ki)
-    dM_ki <- x_ki*Q_ki*(C_cap_ki - C_ki/P_ki) - CLE_u*M_ki
+    dM_cap_ki <- Q_ki*(C_art - C_cap_ki) - x_ki*Q_ki*(C_cap_ki - C_ki/P_ki)- CLE_u*M_cap_ki
+    dM_ki <- x_ki*Q_ki*(C_cap_ki - C_ki/P_ki) 
     
     # GIT - Gastrointestinal Track
     dM_cap_git <- Q_git*(C_art - C_cap_git) - x_git*Q_git*(C_cap_git - C_git/P_git)
-    dM_git <- x_git*Q_git*(C_cap_git - C_git/P_git) - CLE_f*M_git
+    dM_git <- x_git*Q_git*(C_cap_git - C_git/P_git) 
+    dM_lumen <- CLE_h*M_li - CLE_f *M_lumen 
     
     # Bone
     dM_cap_bone <- Q_bone*(C_art - C_cap_bone) - x_bone*Q_bone*(C_cap_bone - C_bone/P_bone)
@@ -279,20 +283,23 @@ ode.func <- function(time, inits, params){
     dM_rob <- x_rob*Q_rob*(C_cap_rob - C_rob/P_rob) 
     
     # Urine
-    dM_urine <- CLE_u*M_ki
+    dM_urine <- CLE_u*M_cap_ki
     
     # Feces
-    dM_feces <- CLE_f*M_git
+    dM_feces <- CLE_f*M_lumen
     
     # Venous Blood
-    dM_ven <- Q_ht*C_cap_ht + (Q_li + Q_spl)*C_cap_li + Q_ki*C_cap_ki + Q_git*C_cap_git +
+    dM_ven <- Q_ht*C_cap_ht + (Q_li + Q_spl+Q_git)*C_cap_li + Q_ki*C_cap_ki +
       Q_bone*C_cap_bone + Q_rob*C_cap_rob - Q_total*C_ven
     
     # Arterial Blood
     dM_art <-  Q_total*C_cap_lu - Q_total*C_art
     
-    Blood_total <- M_ven + M_art
+    Blood_total <- M_ven + M_art + M_cap_ht + M_cap_lu +M_cap_li+M_cap_spl+
+                  M_cap_ki+ M_cap_git+M_cap_bone+M_cap_rob
     Blood <- Blood_total/(V_blood)
+    
+    C_git_total <- (M_git+M_lumen)/w_git
     
     list(c("dM_ht" = dM_ht, "dM_lu" = dM_lu, 
            "dM_li" = dM_li, "dM_spl" = dM_spl, 
@@ -304,11 +311,12 @@ ode.func <- function(time, inits, params){
            "dM_cap_ki" = dM_cap_ki, "dM_cap_git" = dM_cap_git, 
            "dM_cap_bone" = dM_cap_bone,"dM_cap_rob"=dM_cap_rob,
            
-           "dM_ven" = dM_ven, "dM_art" = dM_art, "dM_feces" = dM_feces, "dM_urine" = dM_urine),
+           "dM_lumen" = dM_lumen,
+            "dM_ven" = dM_ven, "dM_art" = dM_art, "dM_feces" = dM_feces, "dM_urine" = dM_urine),
          
          "Blood"=Blood,
          "C_ht"=C_ht, "C_lu"=C_lu, "C_li"=C_li, "C_spl"=C_spl,
-         "C_ki"=C_ki, "C_git"=C_git, "C_bone"=C_bone, "C_rob"=C_rob,
+         "C_ki"=C_ki, "C_git"=C_git_total, "C_bone"=C_bone, "C_rob"=C_rob,
          "Feces"=M_feces, "Urine"=M_urine)
   })
 }
@@ -424,7 +432,8 @@ obj.func <- function(x){
 #==============================
 set.seed(0)
 x0 <- log(runif(4, 1e-05,10))
-names(x0) <- c("x_gen", "P_gen", "CLE_f", "CLE_u")
+x0 <- log(c(100,1,0.1,0.1,0.1))
+names(x0) <- c("x_gen", "P_gen", "CLE_h", "CLE_u", "CLE_f")
 
 time_points <- c(1,3,7, 15, 30)*24 # hours
 excretion_time_points <- excretion_time

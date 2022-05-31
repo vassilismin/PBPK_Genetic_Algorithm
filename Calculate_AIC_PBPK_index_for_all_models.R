@@ -4,8 +4,8 @@
   #===============
   # Load data  
   #===============
-  setwd("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm")
-  
+  setwd("C:/Users/ptsir/Documents/GitHub/PBPK_Genetic_Algorithm")
+  MAX = 100
   dose_kg <- 10 # mg/kg rat body
   mass <- 250 # g  
   dose <- dose_kg*mass/1000 # mg TiO2
@@ -667,20 +667,15 @@
   phys_pars <- create.params(compartments,mass)
   
   #---------------------------
-  # Define fitting parameters 
-  #---------------------------
-  N_p <-8 #   Number of partition coefficients
-  N_x <- 8#   Number of permeability coefficients
-  # Convert the binary encoding to integer
+  N_p <- 8
+  N_x <- 8
   grouping <- c(1:8,1:8)
   # Define size of P and X groups
   P_groups <- length(unique(grouping[1:N_p]))  # sample size
   X_groups <- length(unique(grouping[(N_p+1):(N_p+N_x)]))  # sample size
- # set.seed(0)
-    
-  # Initilise parameter vector
+  # set.seed(0)
+  # Initilise parameter values
   fitted <- rep(NA,P_groups+X_groups+2)
-      
   # Initialise naming vectors
   pnames <- rep(NA, P_groups)
   xnames <- rep(NA, X_groups)
@@ -706,19 +701,19 @@
   # Some initialisations fail to obtain solution, so resample until you do
   nm_optimizer_max <- NULL
   while( is.null(nm_optimizer_max) ) {
-    fitted <- log(exp(rnorm(P_groups+X_groups+2,0,1)))
+    fitted[] <- c(log(exp(runif(P_groups, 3,6))),log(exp(runif(X_groups+2, -3,1))))
     try(
-  # Run the Nelder Mead algorithmm to estimate the parameter values
-    nm_optimizer_max <- dfoptim::nmk(par = fitted, fn = obj.func,
-                                   control = list(maxfeval=400, trace=T), y_init = y_init,
-                                   time_points = time_points,
-                                   excretion_time_points =  excretion_time_points,
-                                   sample_time = sample_time,
-                                   phys_pars = phys_pars, 
-                                   position = position )
+      # Run the Nelder Mead algorithmm to estimate the parameter values
+      nm_optimizer_max <- dfoptim::nmk(par = fitted, fn = obj.func,
+                                       control = list(maxfeval=MAX, trace=T), y_init = y_init,
+                                       time_points = time_points,
+                                       excretion_time_points =  excretion_time_points,
+                                       sample_time = sample_time,
+                                       phys_pars = phys_pars, 
+                                       position = position )
     )
-  } 
-
+  }
+  
   # Extract the converged parameter values in the log space
   params <- nm_optimizer_max$par
   # Create the matrix of the system  
@@ -747,6 +742,7 @@
   
   
   
+  
   ####################################
   #===================================
   #  *** MIN PROBLEM ***  
@@ -755,7 +751,6 @@
   #---------------------------
   # Define fitting parameters 
   #---------------------------
-  # Convert the binary encoding to integer
   grouping <- rep(1,16)
   # Define size of P and X groups
   P_groups <- length(unique(grouping[1:N_p]))  # sample size
@@ -788,11 +783,11 @@
   # Some initialisations fail to obtain solution, so resample until you do
   nm_optimizer_min <- NULL
   while( is.null(nm_optimizer_min) ) {
-    fitted <- log(exp(runif(P_groups+X_groups+2, -2,2)))
+    fitted[] <- c(log(exp(runif(P_groups, 3,6))),log(exp(runif(X_groups+2, -3,1))))
     try(
       # Run the Nelder Mead algorithmm to estimate the parameter values
       nm_optimizer_min <- dfoptim::nmk(par = fitted, fn = obj.func,
-                                       control = list(maxfeval=2000, trace=T), y_init = y_init,
+                                       control = list(maxfeval=MAX, trace=T), y_init = y_init,
                                        time_points = time_points,
                                        excretion_time_points =  excretion_time_points,
                                        sample_time = sample_time,
@@ -826,8 +821,6 @@
   print(paste0(" AIC value is ", fit_value_min))
   
   print(paste0("New fitness metric is ", nm_optimizer_min$value))
-  
-  
   
   ####################################
   #===================================
@@ -921,6 +914,8 @@
   #---------------------------
   # Define fitting parameters 
   #---------------------------
+  load("C:/Users/ptsir/Documents/GitHub/PBPK_Genetic_Algorithm/ga_bin_results_random_initialisation_new_fitness.RData")
+  
   GA_results_bin <- GA_results
   # Convert the binary encoding to integer
   grouping <- decode_ga_bin(GA_results_bin@solution[1,])
@@ -955,11 +950,11 @@
   # Some initialisations fail to obtain solution, so resample until you do
   nm_optimizer_bin <- NULL
   while( is.null(nm_optimizer_bin) ) {
-    fitted <- log(exp(runif(P_groups+X_groups+2, -2,2)))
+    fitted[] <- c(log(exp(runif(P_groups, 3,6))),log(exp(runif(X_groups+2, -3,1))))
     try(
       # Run the Nelder Mead algorithmm to estimate the parameter values
       nm_optimizer_bin <- dfoptim::nmk(par = fitted, fn = obj.func,
-                                       control = list(maxfeval=2000, trace=T), y_init = y_init,
+                                       control = list(maxfeval=MAX, trace=T), y_init = y_init,
                                        time_points = time_points,
                                        excretion_time_points =  excretion_time_points,
                                        sample_time = sample_time,
@@ -991,7 +986,7 @@
   # GA solves a maximisation problem, and best model gives minimum AIC, so take opposite of AIC
   print(paste0(" AIC value is ", AIC_result))
   
-  print(paste0("PBPK index is ", nm_optimizer_bin$value))
+  print(paste0("New fitness metric is ", nm_optimizer_bin$value))
   
   
   ####################################
@@ -1067,11 +1062,11 @@
   # Some initialisations fail to obtain solution, so resample until you do
   nm_optimizer_real <- NULL
   while( is.null(nm_optimizer_real) ) {
-    fitted <- log(exp(runif(P_groups+X_groups+2, -2,2)))
+    fitted[] <- c(log(exp(runif(P_groups, 3,6))),log(exp(runif(X_groups+2, -3,1))))
     try(
       # Run the Nelder Mead algorithmm to estimate the parameter values
       nm_optimizer_real <- dfoptim::nmk(par = fitted, fn = obj.func,
-                                       control = list(maxfeval=2000, trace=T), y_init = y_init,
+                                       control = list(maxfeval=MAX, trace=T), y_init = y_init,
                                        time_points = time_points,
                                        excretion_time_points =  excretion_time_points,
                                        sample_time = sample_time,
