@@ -458,8 +458,8 @@ create.plots <- function(compartment){
     labs(title = rlang::expr(!!compartment), 
     y = ifelse(excreta,"TiO2 (mg)","TiO2 (mg/g tissue)" ),
     x = "Time (hours)")+
-    theme(plot.title = element_text(hjust = 0.5))+
-      scale_y_continuous(trans='log10')
+    theme(plot.title = element_text(hjust = 0.5))#+
+    #scale_y_continuous(trans='log10')
  
 }
 plots <- lapply(names(observations)[2:length(observations)],create.plots)
