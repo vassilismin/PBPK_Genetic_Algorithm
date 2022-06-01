@@ -495,6 +495,164 @@ solve_exp_matrix_new <- function(x, time, y_init, phys_pars){
   })
 }
 
+## Only venous and capillary blood is part of blood
+solve_exp_matrix_blood <- function(x, time, y_init, phys_pars){
+  with( as.list(phys_pars),{
+    if(!is.matrix(x)){
+      stop("x must be a NxN matrix")
+    }
+    
+    if(!is.numeric(y_init)){
+      stop("y_init must be a numeric vector")
+    }
+    
+    if(dim(x)[1] != dim(x)[2]){
+      stop("Matrix x must be NxN")
+    }
+    
+    if(dim(x)[1] != length(y_init)){
+      stop("Dimension of y_init must be equal to dimension of matrix x")
+    }
+    
+    
+    y_t  <- matrix(data=NA, nrow = nrow(x), ncol = length(time))
+    colnames(y_t) <- as.character(time)
+    
+    y_t[,1] <- y_init
+    for (t in 2:length(time)) {
+      solution_t <- expm::expm(x*time[t])%*%y_init
+      y_t[,t] <- solution_t
+    }
+    rownames(y_t) <- rownames(x)
+    
+    y_t <- data.frame(t(y_t))
+    
+    # Transform TiO2 masses to concentrations
+    concentrations <- cbind(time,
+                            (y_t$M_ven + y_t$M_art )/V_blood,
+                            y_t$M_ht/w_ht,
+                            y_t$M_lu/w_lu,
+                            y_t$M_li/w_li,
+                            y_t$M_spl/w_spl,
+                            y_t$M_ki/w_ki,
+                            (y_t$M_git+y_t$M_lumen)/w_git,
+                            y_t$M_bone/w_bone,
+                            y_t$M_feces,
+                            y_t$M_urine)
+    colnames(concentrations) <- c("Time","C_blood", "C_ht", "C_lu", "C_li",
+                                  "C_spl", "C_ki", "C_git", "C_bone", "Feces", "Urine")
+    
+    #return(list(y_t, concentrations))
+    return(data.frame(concentrations))
+  })
+}
+# Blood is part of the organs
+solve_exp_matrix_tissue <- function(x, time, y_init, phys_pars){
+  with( as.list(phys_pars),{
+    if(!is.matrix(x)){
+      stop("x must be a NxN matrix")
+    }
+    
+    if(!is.numeric(y_init)){
+      stop("y_init must be a numeric vector")
+    }
+    
+    if(dim(x)[1] != dim(x)[2]){
+      stop("Matrix x must be NxN")
+    }
+    
+    if(dim(x)[1] != length(y_init)){
+      stop("Dimension of y_init must be equal to dimension of matrix x")
+    }
+    
+    
+    y_t  <- matrix(data=NA, nrow = nrow(x), ncol = length(time))
+    colnames(y_t) <- as.character(time)
+    
+    y_t[,1] <- y_init
+    for (t in 2:length(time)) {
+      solution_t <- expm::expm(x*time[t])%*%y_init
+      y_t[,t] <- solution_t
+    }
+    rownames(y_t) <- rownames(x)
+    
+    y_t <- data.frame(t(y_t))
+    
+    # Transform TiO2 masses to concentrations
+    concentrations <- cbind(time,
+                            (y_t$M_ven + y_t$M_art )/V_blood,
+                            (y_t$M_ht+ y_t$M_cap_ht)/(w_ht+V_cap_ht),
+                            (y_t$M_lu+ y_t$M_cap_lu)/(w_lu+V_cap_lu),
+                            (y_t$M_li+ y_t$M_cap_li)/(w_li+V_cap_li),
+                            (y_t$M_spl+ y_t$M_cap_spl)/(w_spl+V_cap_spl),
+                            (y_t$M_ki+ y_t$M_cap_ki)/(w_ki+V_cap_ki),
+                            (y_t$M_git+ y_t$M_cap_git+y_t$M_lumen)/(w_git+V_cap_git),
+                            (y_t$M_bone+ y_t$M_cap_bone)/(w_bone+V_cap_bone),
+                            y_t$M_feces,
+                            y_t$M_urine)
+    colnames(concentrations) <- c("Time","C_blood", "C_ht", "C_lu", "C_li",
+                                  "C_spl", "C_ki", "C_git", "C_bone", "Feces", "Urine")
+    
+    #return(list(y_t, concentrations))
+    return(data.frame(concentrations))
+  })
+}
+solve_exp_matrix_lumen <- function(x, time, y_init, phys_pars){
+  with( as.list(phys_pars),{
+    if(!is.matrix(x)){
+      stop("x must be a NxN matrix")
+    }
+    
+    if(!is.numeric(y_init)){
+      stop("y_init must be a numeric vector")
+    }
+    
+    if(dim(x)[1] != dim(x)[2]){
+      stop("Matrix x must be NxN")
+    }
+    
+    if(dim(x)[1] != length(y_init)){
+      stop("Dimension of y_init must be equal to dimension of matrix x")
+    }
+    
+    
+    y_t  <- matrix(data=NA, nrow = nrow(x), ncol = length(time))
+    colnames(y_t) <- as.character(time)
+    
+    y_t[,1] <- y_init
+    for (t in 2:length(time)) {
+      solution_t <- expm::expm(x*time[t])%*%y_init
+      y_t[,t] <- solution_t
+    }
+    rownames(y_t) <- rownames(x)
+    
+    y_t <- data.frame(t(y_t))
+    
+    # Transform TiO2 masses to concentrations
+    concentrations <- cbind(time,
+                            (y_t$M_ven + y_t$M_art + y_t$M_cap_ht + y_t$M_cap_lu +
+                               y_t$M_cap_li+y_t$M_cap_spl+
+                               y_t$M_cap_ki+ y_t$M_cap_git +
+                               y_t$M_cap_bone + y_t$M_cap_rob)/V_blood,
+                            
+                            y_t$M_ht/w_ht,
+                            y_t$M_lu/w_lu,
+                            y_t$M_li/w_li,
+                            y_t$M_spl/w_spl,
+                            y_t$M_ki/w_ki,
+                            y_t$M_git/w_git,
+                            y_t$M_bone/w_bone,
+                            y_t$M_feces,
+                            y_t$M_urine)
+    colnames(concentrations) <- c("Time","C_blood", "C_ht", "C_lu", "C_li",
+                                  "C_spl", "C_ki", "C_git", "C_bone", "Feces", "Urine")
+    
+    #return(list(y_t, concentrations))
+    return(data.frame(concentrations))
+  })
+}
+
+
 
 fitness.metric <- function(observed, predicted, comp.names =NULL){
   # Check if the user provided the correct input format
@@ -568,12 +726,30 @@ obj.func <- function(params, ...){
     
       # Solve the ODE system using the exponential matrix method  
       solution <-  solve_exp_matrix(x = A, time = sample_time, y_init = y_init,phys_pars = phys_pars )
-    }else{
+    }else if(w_version == "new"){
       # Create the matrix of the system  
       A <- create_ODE_matrix_new(phys_pars = phys_pars, fit_pars =exp(params),  position = position )
       
       # Solve the ODE system using the exponential matrix method  
       solution <-  solve_exp_matrix_new(x = A, time = sample_time, y_init = y_init,phys_pars = phys_pars )
+    }else if(w_version == "blood"){
+      # Create the matrix of the system  
+      A <- create_ODE_matrix_new(phys_pars = phys_pars, fit_pars =exp(params),  position = position )
+      
+      # Solve the ODE system using the exponential matrix method  
+      solution <-  solve_exp_matrix_blood(x = A, time = sample_time, y_init = y_init,phys_pars = phys_pars )
+    }else if(w_version == "tissue"){
+      # Create the matrix of the system  
+      A <- create_ODE_matrix_new(phys_pars = phys_pars, fit_pars =exp(params),  position = position )
+      
+      # Solve the ODE system using the exponential matrix method  
+      solution <-  solve_exp_matrix_tissue(x = A, time = sample_time, y_init = y_init,phys_pars = phys_pars )
+    }else if(w_version == "no_lumen"){
+      # Create the matrix of the system  
+      A <- create_ODE_matrix_new(phys_pars = phys_pars, fit_pars =exp(params),  position = position )
+      
+      # Solve the ODE system using the exponential matrix method  
+      solution <-  solve_exp_matrix_lumen(x = A, time = sample_time, y_init = y_init,phys_pars = phys_pars )
     }
     concentrations <- solution[solution$Time %in% time_points, 2:(dim(solution)[2]-2)]
     excr_solution <-  data.frame(solution$Time, solution$Feces, solution$Urine)
@@ -715,20 +891,65 @@ nm_optimizer_max_new <- dfoptim::nmk(par = fitted_new, fn = obj.func,
                                      phys_pars = phys_pars, 
                                      position = position )
 max_params_new <- exp(nm_optimizer_max_new$par)
-    
+w_version <- "blood"  
+# Run the Nelder Mead algorithmm to estimate the parameter values
+nm_optimizer_max_blood<- dfoptim::nmk(par = fitted_new, fn = obj.func,
+                                     control = list(maxfeval=MAX, trace=T), y_init = y_init_new,
+                                     time_points = time_points,
+                                     excretion_time_points =  excretion_time_points,
+                                     sample_time = sample_time,
+                                     phys_pars = phys_pars, 
+                                     position = position )
+max_params_blood <- exp(nm_optimizer_max_blood$par)
+w_version <- "tissue"  
+# Run the Nelder Mead algorithmm to estimate the parameter values
+nm_optimizer_max_tissue<- dfoptim::nmk(par = fitted_new, fn = obj.func,
+                                      control = list(maxfeval=MAX, trace=T), y_init = y_init_new,
+                                      time_points = time_points,
+                                      excretion_time_points =  excretion_time_points,
+                                      sample_time = sample_time,
+                                      phys_pars = phys_pars, 
+                                      position = position )
+max_params_tissue <- exp(nm_optimizer_max_tissue$par)
+w_version <- "no_lumen"  
+# Run the Nelder Mead algorithmm to estimate the parameter values
+nm_optimizer_max_lumen<- dfoptim::nmk(par = fitted_new, fn = obj.func,
+                                       control = list(maxfeval=MAX, trace=T), y_init = y_init_new,
+                                       time_points = time_points,
+                                       excretion_time_points =  excretion_time_points,
+                                       sample_time = sample_time,
+                                       phys_pars = phys_pars, 
+                                       position = position )
+max_params_lumen <- exp(nm_optimizer_max_lumen$par)
 # Create the matrix of the system  
-A_old <- create_ODE_matrix(phys_pars = phys_pars, fit_pars = max_params_old,  position = position_max)
-A_new <- create_ODE_matrix_new(phys_pars = phys_pars, fit_pars = max_params_new,  position = position_ga )
+A_old <- create_ODE_matrix(phys_pars = phys_pars, fit_pars = max_params_old,  position = position)
+A_new <- create_ODE_matrix_new(phys_pars = phys_pars, fit_pars = max_params_new,  position = position )
+A_blood <- create_ODE_matrix_new(phys_pars = phys_pars, fit_pars = max_params_blood,  position = position )
+A_tissue <- create_ODE_matrix_new(phys_pars = phys_pars, fit_pars = max_params_tissue,  position = position )
+A_lumen <- create_ODE_matrix_new(phys_pars = phys_pars, fit_pars = max_params_lumen,  position = position )
+
 
 # Solve the ODE system using the exponential matrix method  
 solution_old <-  as.data.frame(solve_exp_matrix(x = A_old, time = sample_time, 
                                                 y_init = y_init,phys_pars = phys_pars ))
-names(solution_max) <- c("Time", "Blood", "Heart", "Lungs", "Liver",  "Spleen",
+names(solution_old) <- c("Time", "Blood", "Heart", "Lungs", "Liver",  "Spleen",
                          "Kidneys","Git", "Bone",  "Feces", "Urine")
-solution_new <-  as.data.frame(Solve_exp_matrix_new(x = A_new, time = sample_time, 
-                                               y_init = y_ini_newt,phys_pars = phys_pars ))
-names(solution_ga) <- c("Time","Blood", "Heart", "Lungs", "Liver", "Spleen",
+solution_new <-  as.data.frame(solve_exp_matrix_new(x = A_new, time = sample_time, 
+                                                    y_init = y_init_new,phys_pars = phys_pars ))
+names(solution_new) <- c("Time","Blood", "Heart", "Lungs", "Liver", "Spleen",
                         "Kidneys","Git", "Bone",  "Feces", "Urine")
+solution_blood <-  as.data.frame(solve_exp_matrix_blood(x = A_blood, time = sample_time, 
+                                                    y_init = y_init_new,phys_pars = phys_pars ))
+names(solution_blood) <- c("Time","Blood", "Heart", "Lungs", "Liver", "Spleen",
+                         "Kidneys","Git", "Bone",  "Feces", "Urine")
+solution_tissue <-  as.data.frame(solve_exp_matrix_tissue(x = A_tissue, time = sample_time, 
+                                                    y_init = y_init_new,phys_pars = phys_pars ))
+names(solution_tissue) <- c("Time","Blood", "Heart", "Lungs", "Liver", "Spleen",
+                         "Kidneys","Git", "Bone",  "Feces", "Urine")
+solution_lumen <-  as.data.frame(solve_exp_matrix_lumen(x = A_lumen, time = sample_time, 
+                                                          y_init = y_init_new,phys_pars = phys_pars ))
+names(solution_lumen) <- c("Time","Blood", "Heart", "Lungs", "Liver", "Spleen",
+                            "Kidneys","Git", "Bone",  "Feces", "Urine")
 
 # Create a single data frame to hold the observation data 
 observations <- data.frame( Time =c(24,  72, 168, 360, 720), excretion, df)
@@ -739,16 +960,22 @@ create.plots <- function(compartment){
   excreta <- compartment %in% c("Feces", "Urine")
   ggplot(data = solution_old)+
     geom_line( aes_string(x= "Time", y= rlang::expr(!!compartment), colour=shQuote("Old structure")), 
-               size=1.5) +
+               size=1.5,alpha = 0.7) +
     geom_line(data=solution_new, aes_string(x= "Time", y= rlang::expr(!!compartment),
-                                           colour=shQuote("New structure")), size=1.5) +
+                                           colour=shQuote("New structure")), size=1.5,alpha = 0.7) +
+    geom_line(data=solution_blood, aes_string(x= "Time", y= rlang::expr(!!compartment),
+                                            colour=shQuote("No capillary")), size=1.5,alpha = 0.7) +
+    geom_line(data=solution_tissue, aes_string(x= "Time", y= rlang::expr(!!compartment),
+                                            colour=shQuote("Capillary in tissues")), size=1.5,alpha = 0.7) +
+    geom_line(data=solution_lumen, aes_string(x= "Time", y= rlang::expr(!!compartment),
+                                               colour=shQuote("New structure no lumen")), size=1.5,alpha = 0.7) +
     geom_point(data=observations, aes_string(x="Time", y= rlang::expr(!!compartment),
                                              colour=shQuote("Observations")), size=4)+
     labs(title = rlang::expr(!!compartment), 
          y = ifelse(excreta,"TiO2 (mg)","TiO2 (mg/g tissue)" ),
          x = "Time (hours)")+
     theme(plot.title = element_text(hjust = 0.5))#+
-  #scale_y_continuous(trans='log10')
+   #scale_y_continuous(trans='log10')
   
 }
 plots <- lapply(names(observations)[2:length(observations)],create.plots)
