@@ -189,6 +189,7 @@ ga_fitness <- function(chromosome)
   # desired ODE system. It takes as input the values of parameters and returns the matrix.
   #--------------------------------------------------------------------------------------------------
   
+  
   create_ODE_matrix <- function(phys_pars, fit_pars, position){
     with( as.list(phys_pars),{
       #============================
@@ -207,15 +208,12 @@ ga_fitness <- function(chromosome)
       # x15 <- M_cap_bone | x16 <- M_bone
       # x17 <- M_cap_rob  | x18 <- M_rob 
       # x19 <- M_feces    | x20 <- M_urine
+      # x21 <- M_lumen
       
       # Matrix "A" contains the coefficients of the ODEs system of the PBPK. The ODEs system contains 20 variables, 
       # so the dimensions of matrix A are 20x20. Each row of the matrix represents the differential equation of each 
       # state variable x_i and each column represents the value of the coefficient of each state variable x_j in ODE 
       # of each x_i. The indexing of state variables is analytically presented in the table "Indexing of state variables".
-      
-      # Numbering of parameters
-      #1:ht, 2:lu, 3:li, 4:spl, 5:ki, 6:git, 7:bone, 8:rob
-      
       P_ht <- fit_pars[position[1]]
       P_lu <- fit_pars[position[2]]
       P_li <- fit_pars[position[3]]
@@ -234,12 +232,12 @@ ga_fitness <- function(chromosome)
       x_bone <- fit_pars[position[15]]
       x_rob <- fit_pars[position[16]]
       
-      CLE_f <- fit_pars[length(fit_pars)-1]
-      CLE_u <- fit_pars[length(fit_pars)]
+      CLE_f <- fit_pars[length(fit_pars)-2]
+      CLE_u <- fit_pars[length(fit_pars)-1]
+      CLE_h <- fit_pars[length(fit_pars)]
       
-      
-      A <- matrix(c(rep(0,20^2)), 
-                  nrow = 20)
+      A <- matrix(c(rep(0,21^2)), 
+                  nrow = 21)
       rownames(A) <- c("M_ven", "M_art",
                        "M_cap_ht" ,"M_ht",
                        "M_cap_lu" ,"M_lu",
@@ -249,11 +247,12 @@ ga_fitness <- function(chromosome)
                        "M_cap_git" ,"M_git",
                        "M_cap_bone" ,"M_bone",
                        "M_cap_rob" ,"M_rob", 
-                       "M_feces"  ,"M_urine")
+                       "M_feces"  ,"M_urine",
+                       "M_lumen")
       colnames(A) <- rownames(A)
       
       #Venous
-      A[1,1]<- -Q_total/V_ven; A[1,3]<-Q_ht/V_cap_ht; A[1,7]<-(Q_spl+Q_li)/V_cap_li; A[1,11]<-Q_ki/V_cap_ki; A[1,13]<-Q_git/V_cap_git;
+      A[1,1]<- -Q_total/V_ven; A[1,3]<-Q_ht/V_cap_ht; A[1,7]<-(Q_spl+Q_li+Q_git)/V_cap_li; A[1,11]<-Q_ki/V_cap_ki;
       A[1,15]<-Q_bone/V_cap_bone; A[1,17]<-Q_rob/V_cap_rob
       
       #Arterial
@@ -270,10 +269,10 @@ ga_fitness <- function(chromosome)
       A[6,5] <- x_lu*Q_total/V_cap_lu; A[6,6] <- -x_lu*Q_total/(w_lu*P_lu)
       
       #Liver - capillaries
-      A[7,2] <- Q_li/V_art; A[7,7]<- -Q_li/V_cap_li - Q_spl/V_cap_li - x_li*Q_li/V_cap_li; 
-      A[7,8] <- x_li*Q_li/(w_li*P_li); A[7,9] <- Q_spl/V_cap_spl
+      A[7,2] <- Q_li/V_art; A[7,7]<- -Q_li/V_cap_li - Q_spl/V_cap_li - Q_git/V_cap_li  - x_li*Q_li/V_cap_li; 
+      A[7,8] <- x_li*Q_li/(w_li*P_li); A[7,9] <- Q_spl/V_cap_spl; A[7,13] <- Q_git/V_cap_git
       #Liver - Tissue
-      A[8,7]<-x_li*Q_li/V_cap_li; A[8,8]<- - x_li*Q_li/(w_li*P_li)
+      A[8,7]<-x_li*Q_li/V_cap_li; A[8,8]<- - x_li*Q_li/(w_li*P_li) - CLE_h
       
       #Spleen - Capillaries
       A[9,2] <- Q_spl/V_art; A[9,9]<- -Q_spl/V_cap_spl - x_spl*Q_spl/V_cap_spl; A[9,10] <- x_spl*Q_spl/(w_spl*P_spl)
@@ -281,14 +280,16 @@ ga_fitness <- function(chromosome)
       A[10,9] <- x_spl*Q_spl/V_cap_spl; A[10,10]<- -x_spl*Q_spl/(w_spl*P_spl)
       
       # Kidneys - Capillaries
-      A[11,2] <- Q_ki/V_art; A[11,11] <- -Q_ki/V_cap_ki -x_ki*Q_ki/V_cap_ki; A[11,12] <- x_ki*Q_ki/(w_ki*P_ki)
+      A[11,2] <- Q_ki/V_art; A[11,11] <- -Q_ki/V_cap_ki -x_ki*Q_ki/V_cap_ki - CLE_u; A[11,12] <- x_ki*Q_ki/(w_ki*P_ki)
       #Kidneys -Tissue
-      A[12,11] <- x_ki*Q_ki/V_cap_ki; A[12,12] <- - x_ki*Q_ki/(w_ki*P_ki) -CLE_u
+      A[12,11] <- x_ki*Q_ki/V_cap_ki; A[12,12] <- - x_ki*Q_ki/(w_ki*P_ki)
       
       #Git - Capillaries
       A[13,2] <- Q_git/V_art; A[13,13] <- - Q_git/V_cap_git - x_git*Q_git/V_cap_git; A[13,14] <- x_git*Q_git/(w_git*P_git)
       #Git - Tissue
-      A[14,13] <- x_git*Q_git/V_cap_git; A[14,14] <- - x_git*Q_git/(w_git*P_git) - CLE_f
+      A[14,13] <- x_git*Q_git/V_cap_git; A[14,14] <- - x_git*Q_git/(w_git*P_git) 
+      #Git - Lumen
+      A[21,8] <- CLE_h; A[21,21] <- - CLE_f
       
       #Bone - Capillaries
       A[15,2] <- Q_bone/V_art; A[15,15]<- -Q_bone/V_cap_bone -x_bone*Q_bone/V_cap_bone; A[15,16] <- x_bone*Q_bone/(w_bone*P_bone)
@@ -301,10 +302,10 @@ ga_fitness <- function(chromosome)
       A[18,17] <- x_rob*Q_rob/V_cap_rob; A[18,18] <- - x_rob*Q_rob/(w_rob*P_rob)
       
       #Feces 
-      A[19,14] <- CLE_f
+      A[19,21] <- CLE_f
       
       #Urine
-      A[20,12] <- CLE_u
+      A[20,11] <- CLE_u
       
       return(A)
     })
@@ -321,7 +322,6 @@ ga_fitness <- function(chromosome)
   
   solve_exp_matrix <- function(x, time, y_init, phys_pars){
     with( as.list(phys_pars),{
-      
       if(!is.matrix(x)){
         stop("x must be a NxN matrix")
       }
@@ -353,19 +353,24 @@ ga_fitness <- function(chromosome)
       
       # Transform TiO2 masses to concentrations
       concentrations <- cbind(time,
-                              (y_t$M_ven + y_t$M_art)/V_blood,
+                              (y_t$M_ven + y_t$M_art + y_t$M_cap_ht + y_t$M_cap_lu +
+                                 y_t$M_cap_li+y_t$M_cap_spl+
+                                 y_t$M_cap_ki+ y_t$M_cap_git +
+                                 y_t$M_cap_bone + y_t$M_cap_rob)/V_blood,
+                              
                               y_t$M_ht/w_ht,
                               y_t$M_lu/w_lu,
                               y_t$M_li/w_li,
                               y_t$M_spl/w_spl,
                               y_t$M_ki/w_ki,
-                              y_t$M_git/w_git,
+                              (y_t$M_git+y_t$M_lumen)/w_git,
                               y_t$M_bone/w_bone,
                               y_t$M_feces,
                               y_t$M_urine)
       colnames(concentrations) <- c("Time","C_blood", "C_ht", "C_lu", "C_li",
                                     "C_spl", "C_ki", "C_git", "C_bone", "Feces", "Urine")
       
+      #return(list(y_t, concentrations))
       return(data.frame(concentrations))
     })
   }
@@ -732,7 +737,7 @@ ga_fitness <- function(chromosome)
   #####################################
   
   # Nelder-Mead from dfoptim package
-  y_init <- c(dose, rep(0,19))
+  y_init <- c(dose, rep(0,20))
   time_points <- c(1,3,7, 15, 30)*24 # hours
   excretion_time_points <- excretion_time
   sample_time <- seq(0, 30*24, 1)
@@ -777,11 +782,11 @@ ga_fitness <- function(chromosome)
   # Some initialisations fail to obtain solution, so resample until you do
   nm_optimizer <- NULL
   while( is.null(nm_optimizer) ) {
-    fitted <- log(exp(runif(P_groups+X_groups+2, -1,1)))
+    fitted[] <- c(log(exp(runif(P_groups, 3,6))),log(exp(runif(X_groups+3, -3,1))))
     try(
       # Run the Nelder Mead algorithmm to estimate the parameter values
       nm_optimizer<- dfoptim::nmk(par = fitted, fn = obj.func,
-                                  control = list(maxfeval=400), y_init = y_init,
+                                  control = list(maxfeval=500), y_init = y_init,
                                   time_points = time_points,
                                   excretion_time_points =  excretion_time_points,
                                   sample_time = sample_time,
@@ -824,15 +829,15 @@ GA_results <- GA::ga(type = "binary", fitness = ga_fitness,
                      selection = "gabin_rwSelection",
                      crossover = "gabin_spCrossover", 
                      mutation = "gabin_raMutation",
-                     popSize =  24, #the population size.
+                     popSize =  36, #the population size.
                      pcrossover = 0.9, #the probability of crossover between pairs of chromosomes.
                      pmutation = 0.2, #the probability of mutation in a parent chromosome
-                     elitism = 2, #the number of best fitness individuals to survive at each generation. 
+                     elitism = 5, #the number of best fitness individuals to survive at each generation. 
                      maxiter = 100, #the maximum number of iterations to run before the GA search is halted.
-                     run = 30, # the number of consecutive generations without any improvement
+                     run = 3, # the number of consecutive generations without any improvement
                      #in the best fitness value before the GA is stopped.
                      keepBest = TRUE, # best solutions at each iteration should be saved in a slot called bestSol.
                      parallel = (parallel::detectCores()),
                      monitor =plot,
                      seed = 1234)
-save.image(file = "ga_bin_results_random_initialisation_new_fitness.RData")
+save.image(file = "ga_bin_results_new_structure.RData")
