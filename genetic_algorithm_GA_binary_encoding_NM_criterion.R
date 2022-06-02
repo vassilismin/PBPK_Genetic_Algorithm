@@ -834,7 +834,7 @@ GA_results <- GA::ga(type = "binary", fitness = ga_fitness,
                      pmutation = 0.2, #the probability of mutation in a parent chromosome
                      elitism = 5, #the number of best fitness individuals to survive at each generation. 
                      maxiter = 100, #the maximum number of iterations to run before the GA search is halted.
-                     run = 3, # the number of consecutive generations without any improvement
+                     run = 50, # the number of consecutive generations without any improvement
                      #in the best fitness value before the GA is stopped.
                      keepBest = TRUE, # best solutions at each iteration should be saved in a slot called bestSol.
                      parallel = (parallel::detectCores()),
