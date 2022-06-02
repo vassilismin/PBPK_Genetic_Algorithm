@@ -406,7 +406,7 @@ compartments <- list( "RoB"="RoB","Heart"="Heart", "Kidneys"="Kidneys", "Brain"=
 y_init <- c(dose, rep(0,19))
 time_points <- c(1,3,7, 15, 30)*24 # hours
 excretion_time_points <- excretion_time
-sample_time <- seq(0, 30*24, 0.01)
+sample_time <- seq(0, 30*24, 1)
 # Initialise vector of physiological parameters
 phys_pars <- create.params(compartments,mass)
 
