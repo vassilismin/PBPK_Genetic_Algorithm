@@ -133,7 +133,6 @@ create.params <- function(comp_names, w){
 # "create_ODE_matrix()" creates the matrix with the coefficients of the state variables of the 
 # desired ODE system. It takes as input the values of parameters and returns the matrix.
 #--------------------------------------------------------------------------------------------------
-
 create_ODE_matrix <- function(phys_pars, fit_pars, position){
   with( as.list(phys_pars),{
     #============================
@@ -152,15 +151,12 @@ create_ODE_matrix <- function(phys_pars, fit_pars, position){
     # x15 <- M_cap_bone | x16 <- M_bone
     # x17 <- M_cap_rob  | x18 <- M_rob 
     # x19 <- M_feces    | x20 <- M_urine
+    # x21 <- M_lumen
     
     # Matrix "A" contains the coefficients of the ODEs system of the PBPK. The ODEs system contains 20 variables, 
     # so the dimensions of matrix A are 20x20. Each row of the matrix represents the differential equation of each 
     # state variable x_i and each column represents the value of the coefficient of each state variable x_j in ODE 
     # of each x_i. The indexing of state variables is analytically presented in the table "Indexing of state variables".
-    
-    # Numbering of parameters
-    #1:ht, 2:lu, 3:li, 4:spl, 5:ki, 6:git, 7:bone, 8:rob
-    
     P_ht <- fit_pars[position[1]]
     P_lu <- fit_pars[position[2]]
     P_li <- fit_pars[position[3]]
@@ -179,12 +175,12 @@ create_ODE_matrix <- function(phys_pars, fit_pars, position){
     x_bone <- fit_pars[position[15]]
     x_rob <- fit_pars[position[16]]
     
-    CLE_f <- fit_pars[length(fit_pars)-1]
-    CLE_u <- fit_pars[length(fit_pars)]
+    CLE_f <- fit_pars[length(fit_pars)-2]
+    CLE_u <- fit_pars[length(fit_pars)-1]
+    CLE_h <- fit_pars[length(fit_pars)]
     
-    
-    A <- matrix(c(rep(0,20^2)), 
-                nrow = 20)
+    A <- matrix(c(rep(0,21^2)), 
+                nrow = 21)
     rownames(A) <- c("M_ven", "M_art",
                      "M_cap_ht" ,"M_ht",
                      "M_cap_lu" ,"M_lu",
@@ -194,11 +190,12 @@ create_ODE_matrix <- function(phys_pars, fit_pars, position){
                      "M_cap_git" ,"M_git",
                      "M_cap_bone" ,"M_bone",
                      "M_cap_rob" ,"M_rob", 
-                     "M_feces"  ,"M_urine")
+                     "M_feces"  ,"M_urine",
+                     "M_lumen")
     colnames(A) <- rownames(A)
     
     #Venous
-    A[1,1]<- -Q_total/V_ven; A[1,3]<-Q_ht/V_cap_ht; A[1,7]<-(Q_spl+Q_li)/V_cap_li; A[1,11]<-Q_ki/V_cap_ki; A[1,13]<-Q_git/V_cap_git;
+    A[1,1]<- -Q_total/V_ven; A[1,3]<-Q_ht/V_cap_ht; A[1,7]<-(Q_spl+Q_li+Q_git)/V_cap_li; A[1,11]<-Q_ki/V_cap_ki;
     A[1,15]<-Q_bone/V_cap_bone; A[1,17]<-Q_rob/V_cap_rob
     
     #Arterial
@@ -215,10 +212,10 @@ create_ODE_matrix <- function(phys_pars, fit_pars, position){
     A[6,5] <- x_lu*Q_total/V_cap_lu; A[6,6] <- -x_lu*Q_total/(w_lu*P_lu)
     
     #Liver - capillaries
-    A[7,2] <- Q_li/V_art; A[7,7]<- -Q_li/V_cap_li - Q_spl/V_cap_li - x_li*Q_li/V_cap_li; 
-    A[7,8] <- x_li*Q_li/(w_li*P_li); A[7,9] <- Q_spl/V_cap_spl
+    A[7,2] <- Q_li/V_art; A[7,7]<- -Q_li/V_cap_li - Q_spl/V_cap_li - Q_git/V_cap_li  - x_li*Q_li/V_cap_li; 
+    A[7,8] <- x_li*Q_li/(w_li*P_li); A[7,9] <- Q_spl/V_cap_spl; A[7,13] <- Q_git/V_cap_git
     #Liver - Tissue
-    A[8,7]<-x_li*Q_li/V_cap_li; A[8,8]<- - x_li*Q_li/(w_li*P_li)
+    A[8,7]<-x_li*Q_li/V_cap_li; A[8,8]<- - x_li*Q_li/(w_li*P_li) - CLE_h
     
     #Spleen - Capillaries
     A[9,2] <- Q_spl/V_art; A[9,9]<- -Q_spl/V_cap_spl - x_spl*Q_spl/V_cap_spl; A[9,10] <- x_spl*Q_spl/(w_spl*P_spl)
@@ -226,14 +223,16 @@ create_ODE_matrix <- function(phys_pars, fit_pars, position){
     A[10,9] <- x_spl*Q_spl/V_cap_spl; A[10,10]<- -x_spl*Q_spl/(w_spl*P_spl)
     
     # Kidneys - Capillaries
-    A[11,2] <- Q_ki/V_art; A[11,11] <- -Q_ki/V_cap_ki -x_ki*Q_ki/V_cap_ki; A[11,12] <- x_ki*Q_ki/(w_ki*P_ki)
+    A[11,2] <- Q_ki/V_art; A[11,11] <- -Q_ki/V_cap_ki -x_ki*Q_ki/V_cap_ki - CLE_u; A[11,12] <- x_ki*Q_ki/(w_ki*P_ki)
     #Kidneys -Tissue
-    A[12,11] <- x_ki*Q_ki/V_cap_ki; A[12,12] <- - x_ki*Q_ki/(w_ki*P_ki) -CLE_u
+    A[12,11] <- x_ki*Q_ki/V_cap_ki; A[12,12] <- - x_ki*Q_ki/(w_ki*P_ki)
     
     #Git - Capillaries
     A[13,2] <- Q_git/V_art; A[13,13] <- - Q_git/V_cap_git - x_git*Q_git/V_cap_git; A[13,14] <- x_git*Q_git/(w_git*P_git)
     #Git - Tissue
-    A[14,13] <- x_git*Q_git/V_cap_git; A[14,14] <- - x_git*Q_git/(w_git*P_git) - CLE_f
+    A[14,13] <- x_git*Q_git/V_cap_git; A[14,14] <- - x_git*Q_git/(w_git*P_git) 
+    #Git - Lumen
+    A[21,8] <- CLE_h; A[21,21] <- - CLE_f
     
     #Bone - Capillaries
     A[15,2] <- Q_bone/V_art; A[15,15]<- -Q_bone/V_cap_bone -x_bone*Q_bone/V_cap_bone; A[15,16] <- x_bone*Q_bone/(w_bone*P_bone)
@@ -246,10 +245,10 @@ create_ODE_matrix <- function(phys_pars, fit_pars, position){
     A[18,17] <- x_rob*Q_rob/V_cap_rob; A[18,18] <- - x_rob*Q_rob/(w_rob*P_rob)
     
     #Feces 
-    A[19,14] <- CLE_f
+    A[19,21] <- CLE_f
     
     #Urine
-    A[20,12] <- CLE_u
+    A[20,11] <- CLE_u
     
     return(A)
   })
@@ -266,7 +265,6 @@ create_ODE_matrix <- function(phys_pars, fit_pars, position){
 
 solve_exp_matrix <- function(x, time, y_init, phys_pars){
   with( as.list(phys_pars),{
-    
     if(!is.matrix(x)){
       stop("x must be a NxN matrix")
     }
@@ -298,22 +296,197 @@ solve_exp_matrix <- function(x, time, y_init, phys_pars){
     
     # Transform TiO2 masses to concentrations
     concentrations <- cbind(time,
-                            (y_t$M_ven + y_t$M_art)/V_blood,
+                            (y_t$M_ven + y_t$M_art + y_t$M_cap_ht + y_t$M_cap_lu +
+                               y_t$M_cap_li+y_t$M_cap_spl+
+                               y_t$M_cap_ki+ y_t$M_cap_git +
+                               y_t$M_cap_bone + y_t$M_cap_rob)/V_blood,
+                            
                             y_t$M_ht/w_ht,
                             y_t$M_lu/w_lu,
                             y_t$M_li/w_li,
                             y_t$M_spl/w_spl,
                             y_t$M_ki/w_ki,
-                            y_t$M_git/w_git,
+                            (y_t$M_git+y_t$M_lumen)/w_git,
                             y_t$M_bone/w_bone,
                             y_t$M_feces,
                             y_t$M_urine)
     colnames(concentrations) <- c("Time","C_blood", "C_ht", "C_lu", "C_li",
                                   "C_spl", "C_ki", "C_git", "C_bone", "Feces", "Urine")
     
+    #return(list(y_t, concentrations))
     return(data.frame(concentrations))
   })
 }
+#===============
+#4. Improved fitness metric  
+#===============
+
+############# Calculate PBPK indices #############
+# fitness.metric function the returns the compartment and consolidated (Total) discrepancy index
+# of a PBPK model, given some experimental data. It follows the paper of Krishnan et al.1995.
+# observed: list of vectors containing the experimental data
+# predictions: list of vectors containing the predicted data
+# names of the compartments
+
+
+fitness.metric <- function(observed, predicted, comp.names =NULL){
+  # Check if the user provided the correct input format
+  if (!is.list(observed) || !is.list(predicted)){
+    stop(" The observations and predictions must be lists")
+  }
+  # Check if the user provided equal length lists
+  if (length(observed) != length(predicted)){
+    stop(" The observations and predictions must have the same compartments")
+  }
+  Ncomp <- length(observed) # Number of compartments
+  I <- rep(NA, Ncomp) # Compartment discrepancy index
+  N_obs <- rep(NA, Ncomp) #Number of observations per compartment
+  #loop over the compartments
+  for (i in 1:Ncomp){
+    Et <- 0 #relative error with observations
+    St <- 0  #relative error with simulations
+    N <- length(observed[[i]]) # number of observations for compartment i
+    # Check if observations and predictions have equal length
+    if(N != length(predicted[[i]])){
+      stop(paste0("Compartment ",i," had different length in the observations and predictions"))
+    }
+    N_obs[i] <- N # populate the N_obs vector
+    for (j in 1:N){
+      # sum of relative squared errors (error = observed - predicted)
+      Et <- Et + ( abs(observed[[i]][j] - predicted[[i]][j])  / observed[[i]][j] )  ^2
+      St <- St + ( abs(observed[[i]][j] - predicted[[i]][j])  / predicted[[i]][j] )  ^2
+    }
+    
+    # root mean of the square of observed values
+    RMEt <- sqrt(Et/N)
+    # root mean of the square of simulated values
+    RMSt <- sqrt( St/N)
+    
+    I[i] <- (RMEt + RMSt)/2   
+  }
+  # Total number of observations
+  Ntot <- sum(N_obs)
+  # Initialise the consolidated discrepancy index
+  Ic <-0
+  for (i in 1:Ncomp){
+    # Give weight to compartments with more observations (more information)
+    Ic <- Ic +  I[i]* N_obs[i]/Ntot
+  }
+  # Name the list of compartment discrepancy indices
+  if ( !is.null(comp.names)){
+    names(I) <- comp.names
+  }else if (!is.null(names(observed))){
+    names(I) <- names(observed)
+  } else if (!is.null(names(predicted)) && is.null(comp.names) ){
+    names(I) <- names(predicted)
+  }
+  return(Ic)
+  #return(list(Total_index = Ic, Compartment_index= I))
+}
+#======================
+#5. Objective function  
+#======================
+  
+  obj.func <- function(params, ...){
+    
+    dots <- list(...)
+    with(as.list(dots),{
+      
+      # Create the matrix of the system  
+      A <- create_ODE_matrix(phys_pars = phys_pars, fit_pars =exp(params),  position = position )
+      # Solve the ODE system using the exponential matrix method  
+      solution <-  solve_exp_matrix(x = A, time = sample_time, y_init = y_init,phys_pars = phys_pars )
+      
+      concentrations <- solution[solution$Time %in% time_points, 2:(dim(solution)[2]-2)]
+      excr_solution <-  data.frame(solution$Time, solution$Feces, solution$Urine)
+      excr_solution <- excr_solution[solution$Time %in% excretion_time_points, c(2:3)]
+      
+      observed <- list()
+      predicted <- list()
+      
+      for (i in 1:(length(concentrations))) {
+        observed[[i]] <- df[,i]
+        predicted[[i]] <- concentrations[,i]
+      }
+      observed[[i+1]] <- excretion[,1] #feces
+      observed[[i+2]] <- excretion[,2] #urine
+      predicted[[i+1]] <- excr_solution[,1] #feces
+      predicted[[i+2]] <- excr_solution[,2] #urine
+      discrepancy <- fitness.metric(observed, predicted)
+      return(discrepancy)
+    })
+  }
+  
+  #==================
+  #6.Binary mapping 
+  #==================
+  # Function for mapping the binary number to integer
+  # Since with 4 digits numbers from 0-15 can be mapped and here we have 8 
+  # different compartments, every two integers correspond to one compartment
+  bin2int <- function(bin_seq){
+    int <- GA::binary2decimal(bin_seq)
+    if(int == 0 || int == 1){
+      return(1)
+    }else if(int == 2 || int == 3){
+      return(2)
+    }else if(int == 4 || int == 5){
+      return(3)
+    }else if(int == 6 || int == 7){
+      return(4)
+    }else if(int == 8 || int == 9){
+      return(5)
+    }else if(int == 10 || int == 11){
+      return(6)
+    }else if(int == 12 || int == 13){
+      return(7)
+    }else if(int == 14 || int == 15){
+      return(8)
+    }
+  }
+  
+  
+  #=============================
+  #7. Convert binary to grouping  
+  #=============================
+  # Function for converting binary into integer (from )
+  decode_ga <- function(binary_num)
+  { 
+    # Convert binary encoding to gray encoding to avoid the Hamming cliff problem
+    gray_num <- GA::gray2binary(binary_num) 
+    gray_num <- binary_num 
+    
+    #Four digit binary encodes up to 15, if we are past 13, assign the value 13
+    
+    # Partition coefficient grouping
+    P1 <-bin2int(gray_num[1:4])
+    P2 <-bin2int(gray_num[5:8])
+    P3 <-bin2int(gray_num[9:12])
+    P4 <-bin2int(gray_num[13:16])
+    P5 <-bin2int(gray_num[17:20])
+    P6 <-bin2int(gray_num[21:24])
+    P7 <-bin2int(gray_num[25:28])
+    P8 <-bin2int(gray_num[29:32])
+    
+    
+    # Permeability coefficient grouping
+    X1 <-bin2int(gray_num[33:36])
+    X2 <-bin2int(gray_num[37:40])
+    X3 <-bin2int(gray_num[41:44])
+    X4 <-bin2int(gray_num[45:48])
+    X5 <-bin2int(gray_num[49:52])
+    X6 <-bin2int(gray_num[53:56])
+    X7 <-bin2int(gray_num[57:60])
+    X8 <-bin2int(gray_num[61:64])
+    
+    out <- structure(c(P1,P2,P3,P4,P5,P6,P7,P8, X1,X2,X3,X4,X5,
+                       X6,X7,X8), names = c("P1","P2","P3","P4",
+                                            "P5","P6", "P7", "P8", "X1",
+                                            "X2", "X3", "X4", "X5", "X6", "X7", "X8"))
+    return(out)
+  }
+  #=============================
+  #8. Create position  
+  #=============================  
 # Function for creating the position from which to draw each param from the fitted params vector
 create.position <- function(grouping){
   #---------------------------
@@ -326,7 +499,7 @@ create.position <- function(grouping){
   X_groups <- length(unique(grouping[(N_p+1):(N_p+N_x)]))  # sample size
   # set.seed(0)
   # Initilise parameter values
-  fitted <- rep(NA, P_groups+X_groups+2)
+  fitted <- rep(NA, P_groups+X_groups+3)
   # Initialise naming vectors
   pnames <- rep(NA, P_groups)
   xnames <- rep(NA, X_groups)
@@ -339,7 +512,7 @@ create.position <- function(grouping){
     xnames[j] <- paste0("X", as.character(unique(grouping[(N_p+1):(N_p+N_x)])[j]))
   }
   # Define the total parameter vector names
-  names(fitted) <- c(pnames, xnames,"CLE_f", "CLE_u")
+  names(fitted) <- c(pnames, xnames,"CLE_f", "CLE_u", "CLE_h")
   # Variable for keeping which value in the fitted params vector corresponds to each coefficient
   position = rep(NA, length(grouping))
   for (i in 1:(length(position))){
@@ -349,7 +522,9 @@ create.position <- function(grouping){
       position[i] <- which(names(fitted) == paste0("X", as.character(grouping[i])))
     }
   }
-  return(position)
+  fitted[] <- c(log(exp(runif(P_groups, 3,6))),log(exp(runif(X_groups+3, -3,1))))
+  
+  return(list("position"=position,"fitted"=fitted))
 }
 
 #===============
@@ -403,7 +578,7 @@ compartments <- list( "RoB"="RoB","Heart"="Heart", "Kidneys"="Kidneys", "Brain"=
 
 
 # Nelder-Mead from dfoptim package
-y_init <- c(dose, rep(0,19))
+y_init <- c(dose, rep(0,20))
 time_points <- c(1,3,7, 15, 30)*24 # hours
 excretion_time_points <- excretion_time
 sample_time <- seq(0, 30*24, 1)
@@ -411,34 +586,72 @@ sample_time <- seq(0, 30*24, 1)
 phys_pars <- create.params(compartments,mass)
 
 
-load("C:/Users/ptsir/Documents/GitHub/PBPK_Genetic_Algorithm/aic_results.RData")
+load("C:/Users/ptsir/Documents/GitHub/PBPK_Genetic_Algorithm/ga_bin_results_new_structure.RData")
 
-# Load parameters from Nelder-Mead
-# Note that the parameters are sampled in the log space
-max_params <- exp(nm_optimizer_max$par)
-ga_params <-exp(nm_optimizer_bin$par)
 
 # Create the parameter grouping for the max and ga problems
 grouping_max <- c(1:8, 1:8)
-grouping_ga <- grouping  
+grouping_min <- c(rep(1,8), rep(1,8))
+grouping_ga_newFitness <- decode_ga(GA_results@solution[1,])  
 
 # Create the position vector to match the ODE parameters with the fitted parameter values
-position_max <- create.position(grouping_max)
-position_ga <- create.position(grouping_ga)
+position_max <- create.position(grouping_max)$position
+position_min <- create.position(grouping_min)$position
+position_ga_newFitness <- create.position(grouping_ga_newFitness)$position
+
+
+
+MAX <- 800
+# Initialise fitted 
+fitted_max <-  create.position(grouping_max)$fitted
+nm_optimizer_max<- dfoptim::nmk(par = fitted_max, fn = obj.func,
+                                  control = list(maxfeval=MAX, trace=T), y_init = y_init,
+                                  time_points = time_points,
+                                  excretion_time_points =  excretion_time_points,
+                                  sample_time = sample_time,
+                                  phys_pars = phys_pars, 
+                                  position = position_max )
+max_params<- exp(nm_optimizer_max$par)
+
+fitted_min <-  create.position(grouping_min)$fitted
+nm_optimizer_min<- dfoptim::nmk(par = fitted_min, fn = obj.func,
+                                control = list(maxfeval=MAX, trace=T), y_init = y_init,
+                                time_points = time_points,
+                                excretion_time_points =  excretion_time_points,
+                                sample_time = sample_time,
+                                phys_pars = phys_pars, 
+                                position = position_min )
+min_params<- exp(nm_optimizer_min$par)
+
+fitted_ga_newFitness <-  create.position(grouping_ga_newFitness)$fitted
+nm_optimizer_ga_newFitness<- dfoptim::nmk(par = fitted_ga_newFitness, fn = obj.func,
+                                control = list(maxfeval=MAX, trace=T), y_init = y_init,
+                                time_points = time_points,
+                                excretion_time_points =  excretion_time_points,
+                                sample_time = sample_time,
+                                phys_pars = phys_pars, 
+                                position = position_ga_newFitness )
+ga_newFitness_params<- exp(nm_optimizer_ga_newFitness$par)
 
 
 # Create the matrix of the system  
 A_max <- create_ODE_matrix(phys_pars = phys_pars, fit_pars = max_params,  position = position_max)
-A_ga <- create_ODE_matrix(phys_pars = phys_pars, fit_pars = ga_params,  position = position_ga )
+A_min <- create_ODE_matrix(phys_pars = phys_pars, fit_pars = min_params,  position = position_min)
+A_ga_newFitness <- create_ODE_matrix(phys_pars = phys_pars, fit_pars = ga_newFitness_params, 
+                                     position = position_ga_newFitness )
 
 # Solve the ODE system using the exponential matrix method  
 solution_max <-  as.data.frame(solve_exp_matrix(x = A_max, time = sample_time, 
                                                 y_init = y_init,phys_pars = phys_pars ))
 names(solution_max) <- c("Time", "Blood", "Heart", "Lungs", "Liver",  "Spleen",
                          "Kidneys","Git", "Bone",  "Feces", "Urine")
-solution_ga <-  as.data.frame(solve_exp_matrix(x = A_ga, time = sample_time, 
+solution_min <-  as.data.frame(solve_exp_matrix(x = A_min, time = sample_time, 
+                                                y_init = y_init,phys_pars = phys_pars ))
+names(solution_min) <- c("Time", "Blood", "Heart", "Lungs", "Liver",  "Spleen",
+                         "Kidneys","Git", "Bone",  "Feces", "Urine")
+solution_ga_newFitness <-  as.data.frame(solve_exp_matrix(x = A_ga_newFitness, time = sample_time, 
                                                y_init = y_init,phys_pars = phys_pars ))
-names(solution_ga) <- c("Time","Blood", "Heart", "Lungs", "Liver", "Spleen",
+names(solution_ga_newFitness) <- c("Time","Blood", "Heart", "Lungs", "Liver", "Spleen",
                          "Kidneys","Git", "Bone",  "Feces", "Urine")
 
 # Create a single data frame to hold the observation data 
@@ -451,15 +664,17 @@ create.plots <- function(compartment){
     ggplot(data = solution_max)+
     geom_line( aes_string(x= "Time", y= rlang::expr(!!compartment), colour=shQuote("Max params")), 
                size=1.5) +
-    geom_line(data=solution_ga, aes_string(x= "Time", y= rlang::expr(!!compartment),
-                                    colour=shQuote("GA params")), size=1.5) +
+      geom_line(data=solution_min, aes_string(x= "Time", y= rlang::expr(!!compartment),
+                                          colour=shQuote("Min params")), size=1.5) +
+    geom_line(data=solution_ga_newFitness, aes_string(x= "Time", y= rlang::expr(!!compartment),
+                                    colour=shQuote("GA new fitness")), size=1.5) +
     geom_point(data=observations, aes_string(x="Time", y= rlang::expr(!!compartment),
                                       colour=shQuote("Observations")), size=4)+
     labs(title = rlang::expr(!!compartment), 
     y = ifelse(excreta,"TiO2 (mg)","TiO2 (mg/g tissue)" ),
     x = "Time (hours)")+
-    theme(plot.title = element_text(hjust = 0.5))#+
-    #scale_y_continuous(trans='log10')
+    theme(plot.title = element_text(hjust = 0.5))+
+    scale_y_continuous(trans='log10')
  
 }
 plots <- lapply(names(observations)[2:length(observations)],create.plots)
