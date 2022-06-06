@@ -530,7 +530,7 @@ create.position <- function(grouping){
 #===============
 # Load data  
 #===============
-setwd("C:/Users/ptsir/Documents/GitHub/PBPK_Genetic_Algorithm")
+setwd("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm")
 
 dose_kg <- 10 # mg/kg rat body
 mass <- 250 # g  
@@ -586,18 +586,21 @@ sample_time <- seq(0, 30*24, 1)
 phys_pars <- create.params(compartments,mass)
 
 
-load("C:/Users/ptsir/Documents/GitHub/PBPK_Genetic_Algorithm/ga_bin_results_new_structure.RData")
 
 
 # Create the parameter grouping for the max and ga problems
 grouping_max <- c(1:8, 1:8)
 grouping_min <- c(rep(1,8), rep(1,8))
+load("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm/ga_bin_results_new_structure.RData")
 grouping_ga_newFitness <- decode_ga(GA_results@solution[1,])  
+load("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm/ga_bin_results_new_structure_AIC.RData")
+grouping_ga_aic <- decode_ga(GA_results@solution[1,])  
 
 # Create the position vector to match the ODE parameters with the fitted parameter values
 position_max <- create.position(grouping_max)$position
 position_min <- create.position(grouping_min)$position
 position_ga_newFitness <- create.position(grouping_ga_newFitness)$position
+position_ga_aic <- create.position(grouping_ga_aic)$position
 
 
 
@@ -633,12 +636,24 @@ nm_optimizer_ga_newFitness<- dfoptim::nmk(par = fitted_ga_newFitness, fn = obj.f
                                 position = position_ga_newFitness )
 ga_newFitness_params<- exp(nm_optimizer_ga_newFitness$par)
 
+fitted_ga_aic <-  create.position(grouping_ga_aic)$fitted
+nm_optimizer_ga_aic<- dfoptim::nmk(par = fitted_ga_aic, fn = obj.func,
+                                          control = list(maxfeval=MAX, trace=T), y_init = y_init,
+                                          time_points = time_points,
+                                          excretion_time_points =  excretion_time_points,
+                                          sample_time = sample_time,
+                                          phys_pars = phys_pars, 
+                                          position = position_ga_aic )
+ga_aic_params<- exp(nm_optimizer_ga_aic$par)
+
 
 # Create the matrix of the system  
 A_max <- create_ODE_matrix(phys_pars = phys_pars, fit_pars = max_params,  position = position_max)
 A_min <- create_ODE_matrix(phys_pars = phys_pars, fit_pars = min_params,  position = position_min)
 A_ga_newFitness <- create_ODE_matrix(phys_pars = phys_pars, fit_pars = ga_newFitness_params, 
                                      position = position_ga_newFitness )
+A_ga_aic <- create_ODE_matrix(phys_pars = phys_pars, fit_pars = ga_aic_params, 
+                                     position = position_ga_aic )
 
 # Solve the ODE system using the exponential matrix method  
 solution_max <-  as.data.frame(solve_exp_matrix(x = A_max, time = sample_time, 
@@ -653,6 +668,11 @@ solution_ga_newFitness <-  as.data.frame(solve_exp_matrix(x = A_ga_newFitness, t
                                                y_init = y_init,phys_pars = phys_pars ))
 names(solution_ga_newFitness) <- c("Time","Blood", "Heart", "Lungs", "Liver", "Spleen",
                          "Kidneys","Git", "Bone",  "Feces", "Urine")
+solution_ga_aic <-  as.data.frame(solve_exp_matrix(x = A_ga_aic, time = sample_time, 
+                                                          y_init = y_init,phys_pars = phys_pars ))
+names(solution_ga_aic) <- c("Time","Blood", "Heart", "Lungs", "Liver", "Spleen",
+                                   "Kidneys","Git", "Bone",  "Feces", "Urine")
+
 
 # Create a single data frame to hold the observation data 
 observations <- data.frame( Time =c(24,  72, 168, 360, 720), excretion, df)
@@ -668,6 +688,8 @@ create.plots <- function(compartment){
                                           colour=shQuote("Min params")), size=1.5) +
     geom_line(data=solution_ga_newFitness, aes_string(x= "Time", y= rlang::expr(!!compartment),
                                     colour=shQuote("GA new fitness")), size=1.5) +
+      geom_line(data=solution_ga_aic, aes_string(x= "Time", y= rlang::expr(!!compartment),
+                                                       colour=shQuote("GA AIC")), size=1.5) +
     geom_point(data=observations, aes_string(x="Time", y= rlang::expr(!!compartment),
                                       colour=shQuote("Observations")), size=4)+
     labs(title = rlang::expr(!!compartment), 
