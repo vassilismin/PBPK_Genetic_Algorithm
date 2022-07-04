@@ -1,3 +1,4 @@
+
 # This script creates plots for the maximum and GA problems
 
 
@@ -386,107 +387,107 @@ fitness.metric <- function(observed, predicted, comp.names =NULL){
 #======================
 #5. Objective function  
 #======================
+
+obj.func <- function(params, ...){
   
-  obj.func <- function(params, ...){
+  dots <- list(...)
+  with(as.list(dots),{
     
-    dots <- list(...)
-    with(as.list(dots),{
-      
-      # Create the matrix of the system  
-      A <- create_ODE_matrix(phys_pars = phys_pars, fit_pars =exp(params),  position = position )
-      # Solve the ODE system using the exponential matrix method  
-      solution <-  solve_exp_matrix(x = A, time = sample_time, y_init = y_init,phys_pars = phys_pars )
-      
-      concentrations <- solution[solution$Time %in% time_points, 2:(dim(solution)[2]-2)]
-      excr_solution <-  data.frame(solution$Time, solution$Feces, solution$Urine)
-      excr_solution <- excr_solution[solution$Time %in% excretion_time_points, c(2:3)]
-      
-      observed <- list()
-      predicted <- list()
-      
-      for (i in 1:(length(concentrations))) {
-        observed[[i]] <- df[,i]
-        predicted[[i]] <- concentrations[,i]
-      }
-      observed[[i+1]] <- excretion[,1] #feces
-      observed[[i+2]] <- excretion[,2] #urine
-      predicted[[i+1]] <- excr_solution[,1] #feces
-      predicted[[i+2]] <- excr_solution[,2] #urine
-      discrepancy <- fitness.metric(observed, predicted)
-      return(discrepancy)
-    })
-  }
-  
-  #==================
-  #6.Binary mapping 
-  #==================
-  # Function for mapping the binary number to integer
-  # Since with 4 digits numbers from 0-15 can be mapped and here we have 8 
-  # different compartments, every two integers correspond to one compartment
-  bin2int <- function(bin_seq){
-    int <- GA::binary2decimal(bin_seq)
-    if(int == 0 || int == 1){
-      return(1)
-    }else if(int == 2 || int == 3){
-      return(2)
-    }else if(int == 4 || int == 5){
-      return(3)
-    }else if(int == 6 || int == 7){
-      return(4)
-    }else if(int == 8 || int == 9){
-      return(5)
-    }else if(int == 10 || int == 11){
-      return(6)
-    }else if(int == 12 || int == 13){
-      return(7)
-    }else if(int == 14 || int == 15){
-      return(8)
+    # Create the matrix of the system  
+    A <- create_ODE_matrix(phys_pars = phys_pars, fit_pars =exp(params),  position = position )
+    # Solve the ODE system using the exponential matrix method  
+    solution <-  solve_exp_matrix(x = A, time = sample_time, y_init = y_init,phys_pars = phys_pars )
+    
+    concentrations <- solution[solution$Time %in% time_points, 2:(dim(solution)[2]-2)]
+    excr_solution <-  data.frame(solution$Time, solution$Feces, solution$Urine)
+    excr_solution <- excr_solution[solution$Time %in% excretion_time_points, c(2:3)]
+    
+    observed <- list()
+    predicted <- list()
+    
+    for (i in 1:(length(concentrations))) {
+      observed[[i]] <- df[,i]
+      predicted[[i]] <- concentrations[,i]
     }
+    observed[[i+1]] <- excretion[,1] #feces
+    observed[[i+2]] <- excretion[,2] #urine
+    predicted[[i+1]] <- excr_solution[,1] #feces
+    predicted[[i+2]] <- excr_solution[,2] #urine
+    discrepancy <- fitness.metric(observed, predicted)
+    return(discrepancy)
+  })
+}
+
+#==================
+#6.Binary mapping 
+#==================
+# Function for mapping the binary number to integer
+# Since with 4 digits numbers from 0-15 can be mapped and here we have 8 
+# different compartments, every two integers correspond to one compartment
+bin2int <- function(bin_seq){
+  int <- GA::binary2decimal(bin_seq)
+  if(int == 0 || int == 1){
+    return(1)
+  }else if(int == 2 || int == 3){
+    return(2)
+  }else if(int == 4 || int == 5){
+    return(3)
+  }else if(int == 6 || int == 7){
+    return(4)
+  }else if(int == 8 || int == 9){
+    return(5)
+  }else if(int == 10 || int == 11){
+    return(6)
+  }else if(int == 12 || int == 13){
+    return(7)
+  }else if(int == 14 || int == 15){
+    return(8)
   }
+}
+
+
+#=============================
+#7. Convert binary to grouping  
+#=============================
+# Function for converting binary into integer (from )
+decode_ga <- function(binary_num)
+{ 
+  # Convert binary encoding to gray encoding to avoid the Hamming cliff problem
+  gray_num <- GA::gray2binary(binary_num) 
+  gray_num <- binary_num 
+  
+  #Four digit binary encodes up to 15, if we are past 13, assign the value 13
+  
+  # Partition coefficient grouping
+  P1 <-bin2int(gray_num[1:4])
+  P2 <-bin2int(gray_num[5:8])
+  P3 <-bin2int(gray_num[9:12])
+  P4 <-bin2int(gray_num[13:16])
+  P5 <-bin2int(gray_num[17:20])
+  P6 <-bin2int(gray_num[21:24])
+  P7 <-bin2int(gray_num[25:28])
+  P8 <-bin2int(gray_num[29:32])
   
   
-  #=============================
-  #7. Convert binary to grouping  
-  #=============================
-  # Function for converting binary into integer (from )
-  decode_ga <- function(binary_num)
-  { 
-    # Convert binary encoding to gray encoding to avoid the Hamming cliff problem
-    gray_num <- GA::gray2binary(binary_num) 
-    gray_num <- binary_num 
-    
-    #Four digit binary encodes up to 15, if we are past 13, assign the value 13
-    
-    # Partition coefficient grouping
-    P1 <-bin2int(gray_num[1:4])
-    P2 <-bin2int(gray_num[5:8])
-    P3 <-bin2int(gray_num[9:12])
-    P4 <-bin2int(gray_num[13:16])
-    P5 <-bin2int(gray_num[17:20])
-    P6 <-bin2int(gray_num[21:24])
-    P7 <-bin2int(gray_num[25:28])
-    P8 <-bin2int(gray_num[29:32])
-    
-    
-    # Permeability coefficient grouping
-    X1 <-bin2int(gray_num[33:36])
-    X2 <-bin2int(gray_num[37:40])
-    X3 <-bin2int(gray_num[41:44])
-    X4 <-bin2int(gray_num[45:48])
-    X5 <-bin2int(gray_num[49:52])
-    X6 <-bin2int(gray_num[53:56])
-    X7 <-bin2int(gray_num[57:60])
-    X8 <-bin2int(gray_num[61:64])
-    
-    out <- structure(c(P1,P2,P3,P4,P5,P6,P7,P8, X1,X2,X3,X4,X5,
-                       X6,X7,X8), names = c("P1","P2","P3","P4",
-                                            "P5","P6", "P7", "P8", "X1",
-                                            "X2", "X3", "X4", "X5", "X6", "X7", "X8"))
-    return(out)
-  }
-  #=============================
-  #8. Create position  
-  #=============================  
+  # Permeability coefficient grouping
+  X1 <-bin2int(gray_num[33:36])
+  X2 <-bin2int(gray_num[37:40])
+  X3 <-bin2int(gray_num[41:44])
+  X4 <-bin2int(gray_num[45:48])
+  X5 <-bin2int(gray_num[49:52])
+  X6 <-bin2int(gray_num[53:56])
+  X7 <-bin2int(gray_num[57:60])
+  X8 <-bin2int(gray_num[61:64])
+  
+  out <- structure(c(P1,P2,P3,P4,P5,P6,P7,P8, X1,X2,X3,X4,X5,
+                     X6,X7,X8), names = c("P1","P2","P3","P4",
+                                          "P5","P6", "P7", "P8", "X1",
+                                          "X2", "X3", "X4", "X5", "X6", "X7", "X8"))
+  return(out)
+}
+#=============================
+#8. Create position  
+#=============================  
 # Function for creating the position from which to draw each param from the fitted params vector
 create.position <- function(grouping){
   #---------------------------
@@ -608,12 +609,12 @@ MAX <- 800
 # Initialise fitted 
 fitted_max <-  create.position(grouping_max)$fitted
 nm_optimizer_max<- dfoptim::nmk(par = fitted_max, fn = obj.func,
-                                  control = list(maxfeval=MAX, trace=T), y_init = y_init,
-                                  time_points = time_points,
-                                  excretion_time_points =  excretion_time_points,
-                                  sample_time = sample_time,
-                                  phys_pars = phys_pars, 
-                                  position = position_max )
+                                control = list(maxfeval=MAX, trace=T), y_init = y_init,
+                                time_points = time_points,
+                                excretion_time_points =  excretion_time_points,
+                                sample_time = sample_time,
+                                phys_pars = phys_pars, 
+                                position = position_max )
 max_params<- exp(nm_optimizer_max$par)
 
 fitted_min <-  create.position(grouping_min)$fitted
@@ -628,22 +629,22 @@ min_params<- exp(nm_optimizer_min$par)
 
 fitted_ga_newFitness <-  create.position(grouping_ga_newFitness)$fitted
 nm_optimizer_ga_newFitness<- dfoptim::nmk(par = fitted_ga_newFitness, fn = obj.func,
-                                control = list(maxfeval=MAX, trace=T), y_init = y_init,
-                                time_points = time_points,
-                                excretion_time_points =  excretion_time_points,
-                                sample_time = sample_time,
-                                phys_pars = phys_pars, 
-                                position = position_ga_newFitness )
-ga_newFitness_params<- exp(nm_optimizer_ga_newFitness$par)
-
-fitted_ga_aic <-  create.position(grouping_ga_aic)$fitted
-nm_optimizer_ga_aic<- dfoptim::nmk(par = fitted_ga_aic, fn = obj.func,
                                           control = list(maxfeval=MAX, trace=T), y_init = y_init,
                                           time_points = time_points,
                                           excretion_time_points =  excretion_time_points,
                                           sample_time = sample_time,
                                           phys_pars = phys_pars, 
-                                          position = position_ga_aic )
+                                          position = position_ga_newFitness )
+ga_newFitness_params<- exp(nm_optimizer_ga_newFitness$par)
+
+fitted_ga_aic <-  create.position(grouping_ga_aic)$fitted
+nm_optimizer_ga_aic<- dfoptim::nmk(par = fitted_ga_aic, fn = obj.func,
+                                   control = list(maxfeval=MAX, trace=T), y_init = y_init,
+                                   time_points = time_points,
+                                   excretion_time_points =  excretion_time_points,
+                                   sample_time = sample_time,
+                                   phys_pars = phys_pars, 
+                                   position = position_ga_aic )
 ga_aic_params<- exp(nm_optimizer_ga_aic$par)
 
 
@@ -653,7 +654,122 @@ A_min <- create_ODE_matrix(phys_pars = phys_pars, fit_pars = min_params,  positi
 A_ga_newFitness <- create_ODE_matrix(phys_pars = phys_pars, fit_pars = ga_newFitness_params, 
                                      position = position_ga_newFitness )
 A_ga_aic <- create_ODE_matrix(phys_pars = phys_pars, fit_pars = ga_aic_params, 
-                                     position = position_ga_aic )
+                              position = position_ga_aic )
+# Function to estimate the percentage of percent of model-predicted concentrations
+# falling within twofold of the corresponding observed concentrations
+two.fold <- function(predictions, observations, times=NULL){
+  y_obs <- unlist(observations)
+  y_pred <- unlist(predictions)
+  # Total number of observations
+  N<- length(y_obs)
+  # Counter for counting how many observations lie within two fold from the data
+  counter <- 0
+  for ( i in 1:N){
+    if ((y_pred[i]<=2*y_obs[i]) & (y_pred[i]>=0.5*y_obs[i])){
+      counter <- counter + 1
+    }
+  }
+  twofold_percentage <- (counter/N)*100
+  return(twofold_percentage)
+}
+
+#  absolute average fold error
+AAFE <- function(predictions, observations, times=NULL){
+  y_obs <- unlist(observations)
+  y_pred <- unlist(predictions)
+  # Total number of observations
+  N<- length(y_obs)
+  log_ratio <- rep(NA, N) 
+  for ( i in 1:N){
+    log_ratio[i] <- abs(log((y_pred[i]/y_obs[i]), base = 10))
+  }
+  aafe <- 10^(sum(log_ratio)/N) 
+  return(aafe)
+}
+
+#  R-squared between predictions and observations
+r.squared <- function(predictions, observations, times=NULL){
+  y_pred <- unlist(predictions)
+  y_obs <- unlist(observations)
+  
+  lm.model <- lm(y_obs~y_pred)
+  r_squared <- summary(lm.model)$r.squared 
+  
+  return(r_squared)
+}
+
+#  Root-mean-square deviation
+rmsd <- function(predictions, observations, times=NULL){
+  y_obs <- unlist(observations)
+  y_pred <- unlist(predictions)
+  # Total number of observations
+  N<- length(y_obs)
+  summation <- 0
+  for ( i in 1:N){
+    summation <- summation + (y_obs[i]-y_pred[i])^2
+  }
+  rmsd <- sqrt(summation/N)
+  
+  return(rmsd)
+}
+
+
+pbpk.index <- function(observed, predicted, comp.names =NULL){
+  # Check if the user provided the correct input format
+  if (!is.list(observed) || !is.list(predicted)){
+    stop(" The observations and predictions must be lists")
+  }
+  # Check if the user provided equal length lists
+  if (length(observed) != length(predicted)){
+    stop(" The observations and predictions must have the same compartments")
+  }
+  Ncomp <- length(observed) # Number of compartments
+  I <- rep(NA, Ncomp) # Compartment discrepancy index
+  N_obs <- rep(NA, Ncomp) #Number of observations per compartment
+  #loop over the compartments
+  for (i in 1:Ncomp){
+    et <- 0 # errors
+    Et <-0  # experimental
+    N <- length(observed[[i]]) # number of observations for compartment i
+    # Check if observations and predictions have equal length
+    if(N != length(predicted[[i]])){
+      stop(paste0("Compartment ",i," had different length in the observations and predictions"))
+    }
+    N_obs[i] <- N # populate tne N_obs vector
+    for (j in 1:N){
+      # sum of absolute squared errors (error = observed - predicted)
+      et <- et + (abs(observed[[i]][j] - predicted[[i]][j]))^2
+      # Sum of squared observed values
+      Et <- Et + (observed[[i]][j])^2
+    }
+    # root mean square of the absolute error
+    RMet2 <-sqrt(et/N)
+    # root mean of the square of observed values
+    RMEt2 <- sqrt(Et/N)
+    
+    I[i] <- RMet2/RMEt2   
+  }
+  # Total number of observations
+  Ntot <- sum(N_obs)
+  # Initialise the consolidated discrepancy index
+  Ic <-0
+  for (i in 1:Ncomp){
+    Ic <- Ic +  I[i]* N_obs[i]/Ntot
+  }
+  # Name the list of compartment discrepancy indices
+  if ( !is.null(comp.names)){
+    names(I) <- comp.names
+  }else if (!is.null(names(observed))){
+    names(I) <- names(observed)
+  } else if (!is.null(names(predicted)) && is.null(comp.names) ){
+    names(I) <- names(predicted)
+  }
+  return(Ic)
+  #return(list(Total_index = Ic, Compartment_index= I))
+}
+
+
+
 
 # Solve the ODE system using the exponential matrix method  
 solution_max <-  as.data.frame(solve_exp_matrix(x = A_max, time = sample_time, 
@@ -665,54 +781,41 @@ solution_min <-  as.data.frame(solve_exp_matrix(x = A_min, time = sample_time,
 names(solution_min) <- c("Time", "Blood", "Heart", "Lungs", "Liver",  "Spleen",
                          "Kidneys","Git", "Bone",  "Feces", "Urine")
 solution_ga_newFitness <-  as.data.frame(solve_exp_matrix(x = A_ga_newFitness, time = sample_time, 
-                                               y_init = y_init,phys_pars = phys_pars ))
-names(solution_ga_newFitness) <- c("Time","Blood", "Heart", "Lungs", "Liver", "Spleen",
-                         "Kidneys","Git", "Bone",  "Feces", "Urine")
-solution_ga_aic <-  as.data.frame(solve_exp_matrix(x = A_ga_aic, time = sample_time, 
                                                           y_init = y_init,phys_pars = phys_pars ))
-names(solution_ga_aic) <- c("Time","Blood", "Heart", "Lungs", "Liver", "Spleen",
+names(solution_ga_newFitness) <- c("Time","Blood", "Heart", "Lungs", "Liver", "Spleen",
                                    "Kidneys","Git", "Bone",  "Feces", "Urine")
+solution_ga_aic <-  as.data.frame(solve_exp_matrix(x = A_ga_aic, time = sample_time, 
+                                                   y_init = y_init,phys_pars = phys_pars ))
+names(solution_ga_aic) <- c("Time","Blood", "Heart", "Lungs", "Liver", "Spleen",
+                            "Kidneys","Git", "Bone",  "Feces", "Urine")
 
 
+metric.print <- function(x){
+solution <- x
 
-# Create a single data frame to hold the observation data 
-observations <- data.frame( Time =c(24,  72, 168, 360, 720), excretion, df)
+concentrations <- solution[solution$Time %in% time_points, 2:(dim(solution)[2]-2)]
+excr_solution <-  data.frame(solution$Time, solution$Feces, solution$Urine)
+excr_solution <- excr_solution[solution$Time %in% excretion_time_points, c(2:3)]
 
-library(ggplot2)
+observed <- list()
+predicted <- list()
 
-create.plots <- function(compartment){  
-    excreta <- compartment %in% c("Feces", "Urine")
-    ggplot(data = solution_max)+
-    geom_line( aes_string(x= "Time", y= rlang::expr(!!compartment), colour=shQuote("Max params")), 
-               size=1.5) +
-   #   geom_line(data=solution_min, aes_string(x= "Time", y= rlang::expr(!!compartment),
-    #                                      colour=shQuote("Min params")), size=1.5) +
-    geom_line(data=solution_ga_newFitness, aes_string(x= "Time", y= rlang::expr(!!compartment),
-                                    colour=shQuote("GA new fitness")), size=1.5) +
-      geom_line(data=solution_ga_aic, aes_string(x= "Time", y= rlang::expr(!!compartment),
-                                                       colour=shQuote("GA AIC")), size=1.5) +
-    geom_point(data=observations, aes_string(x="Time", y= rlang::expr(!!compartment),
-                                      colour=shQuote("Observations")), size=4)+
-    labs(title = rlang::expr(!!compartment), 
-    y = ifelse(excreta,"TiO2 (mg)","TiO2 (mg/g tissue)" ),
-    x = "Time (hours)")+
-    theme(plot.title = element_text(hjust = 0.5))+
-    scale_y_continuous(trans='log10')
- 
+for (i in 1:(length(concentrations))) {
+  observed[[i]] <- df[,i]
+  predicted[[i]] <- concentrations[,i]
 }
-plots <- lapply(names(observations)[2:length(observations)],create.plots)
-p1 <-  plots[[1]]
-p2 <-  plots[[2]]
-p3 <-  plots[[3]]
-p4 <-  plots[[4]]
-p5 <-  plots[[5]]
-p6 <-  plots[[6]]
-p7 <-  plots[[7]]
-p8 <-  plots[[8]]
-p9 <-  plots[[9]]
-p10 <-  plots[[10]]
-gridExtra::grid.arrange(p1,p2,p3,p4,nrow = 2)
-gridExtra::grid.arrange(p5,p6,p7,p8,nrow = 2)
-gridExtra::grid.arrange(p9,p10,nrow = 2)
+observed[[i+1]] <- excretion[,1] #feces
+observed[[i+2]] <- excretion[,2] #urine
+predicted[[i+1]] <- excr_solution[,1] #feces
+predicted[[i+2]] <- excr_solution[,2] #urine
 
+print(pbpk.index(observed, predicted))
+print(r.squared(observed, predicted))
+print(AAFE(observed, predicted))
+print(rmsd(observed, predicted))
+print(two.fold(observed, predicted))
+}
 
+metric.print(solution_min)
+metric.print(solution_ga_newFitness)
+metric.print(solution_ga_aic)
