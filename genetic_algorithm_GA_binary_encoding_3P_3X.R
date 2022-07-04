@@ -798,18 +798,18 @@ ga_fitness <- function(chromosome)
 GA_results <- GA::ga(type = "binary", fitness = ga_fitness, 
                      nBits = 2*8*2,  
                      population = "gabin_Population",
-                     selection = "gabin_rwSelection",
-                     crossover = "gabin_spCrossover", 
+                     selection = "gabin_tourSelection",
+                     crossover = "gabin_uCrossover", 
                      mutation = "gabin_raMutation",
-                     popSize =  36, #the population size.
-                     pcrossover = 0.9, #the probability of crossover between pairs of chromosomes.
-                     pmutation = 0.2, #the probability of mutation in a parent chromosome
-                     elitism = 5, #the number of best fitness individuals to survive at each generation. 
-                     maxiter = 100, #the maximum number of iterations to run before the GA search is halted.
+                     popSize =  72, #the population size.
+                     pcrossover = 0.8, #the probability of crossover between pairs of chromosomes.
+                     pmutation = 0.1, #the probability of mutation in a parent chromosome
+                     elitism = 3, #the number of best fitness individuals to survive at each generation. 
+                     maxiter = 150, #the maximum number of iterations to run before the GA search is halted.
                      run = 50, # the number of consecutive generations without any improvement
                      #in the best fitness value before the GA is stopped.
                      keepBest = TRUE, # best solutions at each iteration should be saved in a slot called bestSol.
                      parallel = (parallel::detectCores()),
                      monitor =plot,
                      seed = 1234)
-save.image(file = "ga_bin_results_3P3X.RData")
+save.image(file = "ga_bin_results_3P3X_big_.RData")
