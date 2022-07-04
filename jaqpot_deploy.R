@@ -1,0 +1,361 @@
+library(deSolve)
+setwd("C:/Users/ptsir/Documents/GitHub/PBPK_Genetic_Algorithm")
+
+
+#####################################
+### Function to create Parameters ###
+#####################################
+create.params <- function(user_input){
+  with( as.list(user_input),{
+  ### Important!!! each compartment has a specific index vectors Tissue_fractions, Regional_flow_fractions, Capillary_fractions and cannot be changed
+  # The index of each compartment:
+  #Rest of Body (rob) --> 1
+  #Heart (ht) --> 2
+  #Kidneys (ki) --> 3
+  #Brain (br) --> 4
+  #Spleen (spl) --> 5
+  #Lungs (lu) --> 6
+  #Liver (li) --> 7
+  #Uterus (ut) --> 8
+  #Bone (bone) --> 9
+  #Adipose (ad) --> 10
+  #Skin (skin) --> 11
+  #Muscles (mu) --> 12
+  #Gastrointestinal track (GIT) --> 13
+  
+  
+  comp_names <- list( "RoB"="RoB","Heart"="Heart", "Kidneys"="Kidneys", "Brain"= NA, "Spleen"="Spleen",
+                        "Lungs"="Lungs", "Liver"="Liver", "Uterus"=NA, "Bone"="Bone", "Adipose"=NA, "Skin"=NA,
+                      "Muscles"=NA, "GIT"="GIT") #used as input in function, compartments that are used in pbpk
+  
+  
+  # List with names of all possible compartments
+  all_comps <- list("RoB"="RoB","Heart"="Heart", "Kidneys"="Kidneys", "Brain"="Brain", "Spleen"="Spleen",
+                    "Lungs"="Lungs", "Liver"="Liver", "Uterus"="Uterus", "Bone"="Bone", "Adipose"="Adipose", "Skin"="Skin", "Muscles"="Muscles",
+                    "GIT"="GIT") # List with names of all possible compartments
+  
+  ### Density of tissues/organs
+  d_tissue <- 1 #g/ml
+  d_skeleton <- 1.92 #g/ml
+  d_adipose <- 0.940 #g/ml
+  
+  Q_total <- (1.54*mass^0.75)*60 # Total Cardiac Output (ml/h)
+  
+  Total_Blood <- 0.06*mass+0.77 # Total blood volume (ml)
+  
+  fr_ad <- 0.0199*mass + 1.644 # w in g,  Brown et al.1997 p.420. This equation gives the  adipose % of body weight 
+  
+  
+  # Physiological parameters units
+  # V_blood, V_ven, V_art (ml): Volume of total blood, venous blood and arterial blood
+  # w_i (g):                    mass of tissue or organ "i"
+  # V_tis_i (ml):                volume of tissue or organ "i"
+  # V_cap_i (ml):                volume of capillary blood in tissue "i"
+  # Q_i, Q_total (ml/h):        regional blood flow of tissue or organ "i"
+  
+  fractions <- matrix(rep(NA, 4*13), ncol = 4)
+  colnames(fractions) <- c("Tissue.weight.fraction.(%.of.BW)", "Regional.flow.fractions.(%.of.total.cardiac.output)",
+                        "Capillary.fractions.(fraction.of.tissue.volume)", "Macrophage.fractions.(fraction.of.tissue.volume)" )
+  fractions[,1] <- c(NA, 0.33, 0.730, 0.570, 0.200, 0.500, 3.660, 0.011, 10.000, NA, 19.030, 40.000, 2.700)
+  fractions[,2] <- c(NA, 4.90, 14.10, 2.00, 1.22, 100.00, 17.40, 1.11, 12.20, 7.00, 5.80, 27.80, 14.00)
+  fractions[,3] <- c(0.0400, 0.2600, 0.1600, 0.0300, 0.2200, 0.3600, 0.2100, 0.0770, 0.0400, 0.0055, 0.0200, 0.0143, 0.0500)
+  fractions[,4] <- c(0.02, 0.02, 0.02, 0.04, 0.30, 0.04, 0.10, 0.02, 0.04, 0.04, 0.02, 0.02, NA)
+  rownames(fractions) <- all_comps
+  
+  #Tissue weight fraction 
+  Tissue_fractions <- fractions[,1]/100 # % of BW. Na values refers to the volume of the rest organs(RoB)
+  Tissue_fractions[10] <- fr_ad/100
+  #Regional blood flow fraction
+  Regional_flow_fractions <- fractions[,2]/100 # % of total cardiac output
+  #Capillary volume fractions (fractions of tissue volume)
+  Capillary_fractions <- fractions[,3] # of tissue volume
+  #Macrophage content as fraction tissue volume for each tissue/organ
+  Macrophage_fractions <- fractions[,4] 
+  
+  W_tis <- rep(0,length(comp_names))
+  V_tis <- rep(0,length(comp_names))
+  V_cap <- rep(0,length(comp_names))
+  W_macro <- rep(0,length(comp_names))  #one more for blood compartment
+  Q <- rep(0,length(comp_names))
+  
+  
+  for (i in 1:length(comp_names)) {
+    control <- comp_names[i]
+    
+    Tissue_fractions[i] <- ifelse(is.na(control), NA, Tissue_fractions[i])
+    Regional_flow_fractions[i] <- ifelse(is.na(control), NA, Regional_flow_fractions[i])
+    Capillary_fractions[i] <- ifelse(is.na(control), NA, Capillary_fractions[i])
+    Macrophage_fractions[i] <- ifelse(is.na(control), NA, Macrophage_fractions[i])
+    
+    ### Calculation of tissue weights  
+    W_tis[i] <- mass*Tissue_fractions[i]
+    
+    
+    ###Calculation of tissue volumes
+    
+    if (i==9){
+      V_tis[i] <- W_tis[i]/d_skeleton
+    } else if(i==10){
+      V_tis[i] <- W_tis[i]/d_adipose
+    } else{
+      V_tis[i] <- W_tis[i]/d_tissue 
+    }
+    
+    ###Calculation of capillary volumes
+    V_cap[i] <- V_tis[i]*Capillary_fractions[i]
+    
+    ###Volume of macrophage contents
+    W_macro[i] <- W_tis[i]*Macrophage_fractions[i]
+    
+    ###Calculation of regional blood flows
+    Q[i] <- Q_total*Regional_flow_fractions[i]
+  }
+  
+  #Vm_ven <- 0.01*Vven #macrophage content in veins
+  #Vm_art <- 0.01*Vart #0.02*Vart #macrophage content in arteries
+  
+  ### Calculations for "Soft tissue" compartment
+  W_tis[1] <- mass - sum(W_tis[2:length(W_tis)], na.rm = TRUE)
+  V_tis[1] <- W_tis[1]/d_adipose     
+  Q[1] <- Q_total - sum(Q[2:length(Q)],na.rm = TRUE) + Q[6]
+  V_cap[1] <- V_tis[1]*Capillary_fractions[1] #Total_Blood - Vven - Vart - sum(V_cap[2:length(V_cap)], na.rm = TRUE)
+  W_macro[1] <- W_tis[1]*Macrophage_fractions[1]
+  
+  parameters <- matrix(c(W_tis[],V_tis[],V_cap[],Q[],W_macro[]), ncol = 5)
+  colnames(parameters) <- c("W_tis", "V_tis", "V_cap", "Q", "W_macro")
+  rownames(parameters) <- all_comps
+  
+  Vven=0.64*Total_Blood
+  Vart=0.15*Total_Blood
+  Wm_ven=0.01*Vven
+  Wm_art=0.01*Vart
+  
+  return(list(
+    "Q_total"=Q_total, "V_blood"=Total_Blood, "V_ven"=Vven, "V_art"=Vart,
+    
+    "w_rob"=parameters[1,1], "w_ht"=parameters[2,1], "w_ki"=parameters[3,1], "w_spl"=parameters[5,1], "w_lu"=parameters[6,1], "w_li"=parameters[7,1], "w_bone"=parameters[9,1], "w_git"=parameters[13,1],
+    
+    "V_tis_rob"=parameters[1,2], "V_tis_ht"=parameters[2,2], "V_tis_ki"=parameters[3,2], "V_tis_spl"=parameters[5,2], "V_tis_lu"=parameters[6,2], "V_tis_li"=parameters[7,2], "V_tis_bone"=parameters[9,2], "V_tis_git"=parameters[13,2], 
+    
+    "V_cap_rob"=parameters[1,3], "V_cap_ht"=parameters[2,3], "V_cap_ki"=parameters[3,3], "V_cap_spl"=parameters[5,3], "V_cap_lu"=parameters[6,3], "V_cap_li"=parameters[7,3], "V_cap_bone"=parameters[9,3], "V_cap_git"=parameters[13,3],
+    
+    "Q_rob"=parameters[1,4], "Q_ht"=parameters[2,4], "Q_ki"=parameters[3,4], "Q_spl"=parameters[5,4], "Q_lu"=parameters[6,4], "Q_li"=parameters[7,4], "Q_bone"=parameters[9,4], "Q_git"=parameters[13,4],
+    "dose" = dose, "administration" = administration
+    
+  ))
+  })
+}
+
+
+#===============================================
+#2. Function to create initial values for ODEs 
+#===============================================
+
+create.inits <- function(parameters){
+  with( as.list(parameters),{
+    M_ht<-0; M_lu<-0; M_li<-0; M_spl<-0; M_ki<-0; M_git<-0; M_bone<-0; M_rob<-0;
+    
+    M_cap_ht<-0; M_cap_lu<-0; M_cap_li<-0; M_cap_spl<-0; M_cap_ki<-0; M_cap_git<-0; M_cap_bone<-0; M_cap_rob<-0;
+    
+    M_lumen <- 0;
+    M_ven<-0; M_art<-0
+    M_feces<-0; M_urine<-0 
+    
+    return(c("M_ht" = M_ht, "M_lu" = M_lu, 
+             "M_li" = M_li, "M_spl" = M_spl, 
+             "M_ki" = M_ki, "M_git" = M_git, 
+             "M_bone" = M_bone,"M_rob"=M_rob,
+             
+             "M_cap_ht" = M_cap_ht, "M_cap_lu" = M_cap_lu, 
+             "M_cap_li" = M_cap_li, "M_cap_spl" = M_cap_spl, 
+             "M_cap_ki" = M_cap_ki, "M_cap_git" = M_cap_git, 
+             "M_cap_bone" = M_cap_bone,"M_cap_rob"=M_cap_rob,
+             
+             "M_lumen" = M_lumen,
+             "M_ven" = M_ven, "M_art" = M_art, "M_feces" = M_feces, "M_urine" = M_urine))
+    
+  })
+}
+
+#==============
+#3.Function for creating events #
+#==============
+create.events<- function(parameters){
+  with( as.list(parameters),{
+    
+    ldose <- length(dose)
+    ltimes <- length(administration)
+    
+    addition <- dose
+    if (ltimes == ldose){
+      events <- list(data = rbind(data.frame(var = "M_ven",  time = administration, 
+                                             value = addition, method = c("add")) ))
+    }else{
+      stop("The times when the drug is injected should be equal in number to the doses")
+    }
+    
+    
+    return(events)
+  }) 
+}
+
+###################
+# 4.Custom function 
+###################
+
+custom.func <- function(){
+  return()
+}
+
+
+#==============
+#5. ODEs System
+#==============
+ode.func <- function(time, Initial.values, Parameters, custom.func){
+  with( as.list(c(Initial.values, Parameters)),{
+    
+    position <- c(1,2,3,4,5,6,7,3,8,9,10,11,12,13,8,9)
+    fit_pars <- c(2.716388e+01, 2.405569e+02, 1.780652e+03, 3.620181e+03, 4.274535e+01, 3.235193e+01,
+                  1.635487e+02, 2.342091e-02, 1.200756e-03, 8.026227e-02, 2.452210e-01, 1.886134e-02,
+                  6.860763e-01, 2.548753e-01, 6.612672e+01, 3.668949e-04)
+
+    P_ht <- fit_pars[position[1]]
+    P_lu <- fit_pars[position[2]]
+    P_li <- fit_pars[position[3]]
+    P_spl <- fit_pars[position[4]]
+    P_ki <- fit_pars[position[5]]
+    P_git <- fit_pars[position[6]]
+    P_bone <- fit_pars[position[7]]
+    P_rob <- fit_pars[position[8]]
+    
+    x_ht <- fit_pars[position[9]]
+    x_lu <- fit_pars[position[10]]
+    x_li <- fit_pars[position[11]]
+    x_spl <- fit_pars[position[12]]
+    x_ki <- fit_pars[position[13]]
+    x_git <- fit_pars[position[14]]
+    x_bone <- fit_pars[position[15]]
+    x_rob <- fit_pars[position[16]]
+    
+    CLE_f <- fit_pars[length(fit_pars)-2]
+    CLE_u <- fit_pars[length(fit_pars)-1]
+    CLE_h <- fit_pars[length(fit_pars)]
+    
+    # Concentrations (mg of NPs)/(g of wet tissue)
+    C_ht <- M_ht/w_ht
+    C_cap_ht <- M_cap_ht/V_cap_ht
+    C_lu <- M_lu/w_lu
+    C_cap_lu <- M_cap_lu/V_cap_lu
+    C_li <- M_li/w_li
+    C_cap_li <- M_cap_li/V_cap_li
+    C_spl <- M_spl/w_spl
+    C_cap_spl <- M_cap_spl/V_cap_spl
+    C_ki <- M_ki/w_ki
+    C_cap_ki <- M_cap_ki/V_cap_ki
+    C_git <- M_git/w_git
+    C_cap_git <- M_cap_git/V_cap_git
+    C_bone <- M_bone/w_bone
+    C_cap_bone <- M_cap_bone/V_cap_bone
+    C_rob <- M_rob/w_rob
+    C_cap_rob <- M_cap_rob/V_cap_rob
+    
+    C_ven <- M_ven/V_ven
+    C_art <- M_art/V_art
+    
+    # Heart
+    dM_cap_ht <- Q_ht*(C_art - C_cap_ht) - x_ht*Q_ht*(C_cap_ht - C_ht/P_ht)
+    dM_ht <- x_ht*Q_ht*(C_cap_ht - C_ht/P_ht) 
+    
+    # Lungs
+    dM_cap_lu <- Q_total*(C_ven - C_cap_lu) - x_lu*Q_total*(C_cap_lu - C_lu/P_lu)
+    dM_lu <-  x_lu*Q_total*(C_cap_lu - C_lu/P_lu)
+    
+    # Liver 
+    dM_cap_li <- Q_li*(C_art - C_cap_li) + Q_spl*(C_cap_spl - C_cap_li) + Q_git*(C_cap_git - C_cap_li) -
+      x_li*(Q_li)*(C_cap_li - C_li/P_li)
+    dM_li <- x_li*Q_li*(C_cap_li - C_li/P_li) - CLE_h*M_li
+    
+    # Spleen
+    dM_cap_spl <- Q_spl*(C_art - C_cap_spl) - x_spl*Q_spl*(C_cap_spl - C_spl/P_spl)
+    dM_spl <- x_spl*Q_spl*(C_cap_spl - C_spl/P_spl) 
+    
+    # Kidneys
+    dM_cap_ki <- Q_ki*(C_art - C_cap_ki) - x_ki*Q_ki*(C_cap_ki - C_ki/P_ki)- CLE_u*M_cap_ki
+    dM_ki <- x_ki*Q_ki*(C_cap_ki - C_ki/P_ki) 
+    
+    # GIT - Gastrointestinal Track
+    dM_cap_git <- Q_git*(C_art - C_cap_git) - x_git*Q_git*(C_cap_git - C_git/P_git)
+    dM_git <- x_git*Q_git*(C_cap_git - C_git/P_git) 
+    dM_lumen <- CLE_h*M_li - CLE_f *M_lumen 
+    
+    # Bone
+    dM_cap_bone <- Q_bone*(C_art - C_cap_bone) - x_bone*Q_bone*(C_cap_bone - C_bone/P_bone)
+    dM_bone <- x_bone*Q_bone*(C_cap_bone - C_bone/P_bone) 
+    
+    
+    # RoB - Rest of Body
+    dM_cap_rob <- Q_rob*(C_art - C_cap_rob) - x_rob*Q_rob*(C_cap_rob - C_rob/P_rob)
+    dM_rob <- x_rob*Q_rob*(C_cap_rob - C_rob/P_rob) 
+    
+    # Urine
+    dM_urine <- CLE_u*M_cap_ki
+    
+    # Feces
+    dM_feces <- CLE_f*M_lumen
+    
+    # Venous Blood
+    dM_ven <- Q_ht*C_cap_ht + (Q_li + Q_spl+Q_git)*C_cap_li + Q_ki*C_cap_ki +
+      Q_bone*C_cap_bone + Q_rob*C_cap_rob - Q_total*C_ven
+    
+    # Arterial Blood
+    dM_art <-  Q_total*C_cap_lu - Q_total*C_art
+    
+    Blood_total <- M_ven + M_art + M_cap_ht + M_cap_lu +M_cap_li+M_cap_spl+
+      M_cap_ki+ M_cap_git+M_cap_bone+M_cap_rob
+    Blood <- Blood_total/(V_blood)
+    
+    C_git_total <- (M_git+M_lumen)/w_git
+    
+    list(c("dM_ht" = dM_ht, "dM_lu" = dM_lu, 
+           "dM_li" = dM_li, "dM_spl" = dM_spl, 
+           "dM_ki" = dM_ki, "dM_git" = dM_git, 
+           "dM_bone" = dM_bone,"dM_rob"=dM_rob,
+           
+           "dM_cap_ht" = dM_cap_ht, "dM_cap_lu" = dM_cap_lu, 
+           "dM_cap_li" = dM_cap_li, "dM_cap_spl" = dM_cap_spl, 
+           "dM_cap_ki" = dM_cap_ki, "dM_cap_git" = dM_cap_git, 
+           "dM_cap_bone" = dM_cap_bone,"dM_cap_rob"=dM_cap_rob,
+           
+           "dM_lumen" = dM_lumen,
+           "dM_ven" = dM_ven, "dM_art" = dM_art, "dM_feces" = dM_feces, "dM_urine" = dM_urine),
+         
+         "Blood"=Blood,
+         "Heart"=C_ht, "Lungs"=C_lu, "Liver"=C_li, "Spleen"=C_spl,
+         "Kidneys"=C_ki, "Git"=C_git_total, "Bone"=C_bone, "RoB"=C_rob,
+         "Feces"=M_feces, "Urine"=M_urine)
+  })
+}
+
+####################
+### User's INPUT ###
+####################
+mass <- 250 # g  
+dose <-2.5 # mg TiO2
+administration = 0.01
+user_input <-list("dose" = dose, "mass" = mass, "administration" = administration)
+predicted.feats <- c( "Blood",  "Heart", "Lungs", "Liver", "Spleen", "Kidneys", "Git", "Bone", "RoB",
+                      "Feces", "Urine")
+
+params<-create.params(user_input)
+inits <- create.inits(params)
+events <- create.events(params)
+
+
+sample_time <- seq(0, 30*24, 1)
+solution <- ode(times = sample_time,  func = ode.func, y = inits, parms = params, 
+                custom.func = custom.func, method="lsodes",  events = events)
+
+#jaqpotr::login.cred()
+#jaqpotr::deploy.pbpk(user.input = user_input,out.vars = predicted.feats, create.params = create.params,
+#                     create.inits = create.inits, create.events = create.events, custom.func = custom.func,
+#                      ode.fun = ode.fun) 
