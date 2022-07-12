@@ -584,27 +584,27 @@ sample_time <- seq(0, 30*24, 1)
 phys_pars <- create.params(compartments,mass)
 
 
-load("C:/Users/ptsir/Documents/GitHub/PBPK_Genetic_Algorithm/ga_bin_results_3P3X.RData")
+load("ga_bin_results_3P3X_real.RData")
 
 
 # Create the parameter grouping for the max and ga problems
 grouping1 <- decode_ga(GA_results@solution[1,])
 grouping2 <- decode_ga(GA_results@solution[2,])
-grouping3 <- decode_ga(GA_results@solution[2,])
-grouping4 <- decode_ga(GA_results@solution[4,])  
-grouping5 <- decode_ga(GA_results@solution[5,])  
+grouping3 <- decode_ga(GA_results@solution[3,])
+#grouping4 <- decode_ga(GA_results@solution[4,])  
+#grouping5 <- decode_ga(GA_results@solution[5,])  
 
 # Create the position vector to match the ODE parameters with the fitted parameter values
 position1 <- create.position(grouping1)$position
 position2 <- create.position(grouping2)$position
 position3 <- create.position(grouping3)$position
-position4 <- create.position(grouping4)$position
-position5 <- create.position(grouping5)$position
+#position4 <- create.position(grouping4)$position
+#position5 <- create.position(grouping5)$position
 
 
-MAX <- 500
+MAX <- 1000
 # Initialise fitted 
-fitted1 <-  create.position(grouping1)$fitted
+fitted1 <-  log(c(1e-1,1e0,1e01,0.0001,0.01,1,0.1,1,1e-04))
 nm_optimizer1<- dfoptim::nmk(par = fitted1, fn = obj.func,
                                 control = list(maxfeval=MAX, trace=T), y_init = y_init,
                                 time_points = time_points,
@@ -614,7 +614,7 @@ nm_optimizer1<- dfoptim::nmk(par = fitted1, fn = obj.func,
                                 position = position1 )
 params1<- exp(nm_optimizer1$par)
 
-fitted2 <-  create.position(grouping2)$fitted
+fitted2 <-  log(c(1e-1,1e0,1e01,0.0001,0.01,1,0.1,1,1e-04))
 nm_optimizer2<- dfoptim::nmk(par = fitted2, fn = obj.func,
                              control = list(maxfeval=MAX, trace=T), y_init = y_init,
                              time_points = time_points,
@@ -624,7 +624,7 @@ nm_optimizer2<- dfoptim::nmk(par = fitted2, fn = obj.func,
                              position = position2 )
 params2<- exp(nm_optimizer2$par)
 
-fitted3 <-  create.position(grouping3)$fitted
+fitted3 <-  log(c(1e01,1e02,1e03,0.0001,0.01,1,1,1e02,1e-04))
 nm_optimizer3<- dfoptim::nmk(par = fitted3, fn = obj.func,
                              control = list(maxfeval=MAX, trace=T), y_init = y_init,
                              time_points = time_points,
@@ -633,27 +633,6 @@ nm_optimizer3<- dfoptim::nmk(par = fitted3, fn = obj.func,
                              phys_pars = phys_pars, 
                              position = position3 )
 params3<- exp(nm_optimizer3$par)
-
-fitted4 <-  create.position(grouping4)$fitted
-nm_optimizer4<- dfoptim::nmk(par = fitted4, fn = obj.func,
-                             control = list(maxfeval=MAX, trace=T), y_init = y_init,
-                             time_points = time_points,
-                             excretion_time_points =  excretion_time_points,
-                             sample_time = sample_time,
-                             phys_pars = phys_pars, 
-                             position = position4 )
-params4<- exp(nm_optimizer4$par)
-
-fitted5 <-  create.position(grouping5)$fitted
-nm_optimizer5<- dfoptim::nmk(par = fitted5, fn = obj.func,
-                             control = list(maxfeval=MAX, trace=T), y_init = y_init,
-                             time_points = time_points,
-                             excretion_time_points =  excretion_time_points,
-                             sample_time = sample_time,
-                             phys_pars = phys_pars, 
-                             position = position5 )
-params5<- exp(nm_optimizer5$par)
-
 
 # Create the matrix of the system  
 A1 <- create_ODE_matrix(phys_pars = phys_pars, fit_pars = params1,  position = position1)

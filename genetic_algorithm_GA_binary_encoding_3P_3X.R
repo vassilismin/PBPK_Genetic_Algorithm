@@ -718,7 +718,6 @@ ga_fitness <- function(chromosome)
   #---------------------------
   # Define fitting parameters 
   #---------------------------
-  chromosome = rbinom(n=32, size=1, prob=0.5) 
   N_p <-8 #   Number of partition coefficients
   N_x <- 8#   Number of permeability coefficients
   # Convert the binary encoding to integer
@@ -728,7 +727,7 @@ ga_fitness <- function(chromosome)
   X_groups <- length(unique(grouping[(N_p+1):(N_p+N_x)]))  # sample size
   #set.seed(0)
   # Initilise parameter values
-  fitted <- rep(NA,(P_groups+X_groups+3))
+  fit <- rep(NA,(P_groups+X_groups+3))
   # Initialise naming vectors
   pnames <- rep(NA, P_groups)
   xnames <- rep(NA, X_groups)
@@ -741,36 +740,41 @@ ga_fitness <- function(chromosome)
     xnames[j] <- paste0("X", as.character(unique(grouping[(N_p+1):(N_p+N_x)])[j]))
   }
   # Define the total parameter vector names
-  names(fitted) <- c(pnames, xnames,"CLE_f", "CLE_u", "CLE_h")
+  names(fit) <- c(pnames, xnames,"CLE_f", "CLE_u", "CLE_h")
   # Variable for keeping which value in the fitted params vector corresponds to each coefficient
   position = rep(NA, length(grouping))
   for (i in 1:(length(position))){
     if(i<=8){
-      position[i] <- which(names(fitted) == paste0("P", as.character(grouping[i])))
+      position[i] <- which(names(fit) == paste0("P", as.character(grouping[i])))
     }else{
-      position[i] <- which(names(fitted) == paste0("X", as.character(grouping[i])))
+      position[i] <- which(names(fit) == paste0("X", as.character(grouping[i])))
     }
   }
   # Some initialisations fail to obtain solution, so resample until you do
   nm_optimizer <- NULL
-  while( is.null(nm_optimizer) ) {
-    fitted[] <- c(log(exp(runif(P_groups, 3,6))),log(exp(runif(X_groups+3, -3,1))))
-    try(
+  fit <- log(c(1e01,1e02,1e03,0.0001,0.01,1,1,1e02,1e-04))
+  try(
       # Run the Nelder Mead algorithmm to estimate the parameter values
-      nm_optimizer<- dfoptim::nmk(par = fitted, fn = obj.func,
+      nm_optimizer<- dfoptim::nmk(par = fit, fn = obj.func,
                                   control = list(maxfeval=500), y_init = y_init,
                                   time_points = time_points,
                                   excretion_time_points =  excretion_time_points,
                                   sample_time = sample_time,
                                   phys_pars = phys_pars, 
-                                  position = position )
+                                  position = position ),
+      silent = TRUE
     )
-  } 
   
+  if(is.null(nm_optimizer)){
+    to_return <- -100 
+  }else{
+    to_return <- -nm_optimizer$value
+  }
   
-  return(-nm_optimizer$value)
+  return(to_return)
     }
-#mfitness<- memoise::memoise(ga_fitness)
+
+mfitness<- memoise::memoise(ga_fitness)
 
 ##############################
 #=============================
@@ -795,21 +799,21 @@ ga_fitness <- function(chromosome)
 #
 #                           /Mutation/
 # gabin_raMutation: Uniform random mutation
-GA_results <- GA::ga(type = "binary", fitness = ga_fitness, 
+GA_results <- GA::ga(type = "binary", fitness = mfitness, 
                      nBits = 2*8*2,  
                      population = "gabin_Population",
-                     selection = "gabin_tourSelection",
-                     crossover = "gabin_uCrossover", 
+                     selection = "gabin_rwSelection",
+                     crossover = "gabin_spCrossover", 
                      mutation = "gabin_raMutation",
-                     popSize =  72, #the population size.
+                     popSize =  60, #the population size.
                      pcrossover = 0.8, #the probability of crossover between pairs of chromosomes.
-                     pmutation = 0.1, #the probability of mutation in a parent chromosome
-                     elitism = 3, #the number of best fitness individuals to survive at each generation. 
-                     maxiter = 150, #the maximum number of iterations to run before the GA search is halted.
-                     run = 50, # the number of consecutive generations without any improvement
+                     pmutation = 0.15, #the probability of mutation in a parent chromosome
+                     elitism = 5, #the number of best fitness individuals to survive at each generation. 
+                     maxiter = 100, #the maximum number of iterations to run before the GA search is halted.
+                     run = 30, # the number of consecutive generations without any improvement
                      #in the best fitness value before the GA is stopped.
                      keepBest = TRUE, # best solutions at each iteration should be saved in a slot called bestSol.
                      parallel = (parallel::detectCores()),
                      monitor =plot,
                      seed = 1234)
-save.image(file = "ga_bin_results_3P3X_big_.RData")
+save.image(file = "ga_bin_results_3P3X.RData")
