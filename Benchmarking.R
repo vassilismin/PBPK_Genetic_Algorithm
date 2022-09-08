@@ -515,6 +515,24 @@ decode_ga_real <- function(real_num)
                                           "X2", "X3", "X4", "X5", "X6", "X7", "X8"))
   return(out)
 }
+
+decode_gac_real <- function(real_num)
+{ 
+  # Partition coefficient grouping
+  P1 <- floor(real_num[1])
+  P2 <- floor(real_num[2])
+  P3 <- floor(real_num[3])
+  P4 <- floor(real_num[4])
+  P5 <- floor(real_num[5])
+  P6 <- floor(real_num[6])
+  P7 <- floor(real_num[7])
+  P8 <- floor(real_num[8])
+  
+  
+  out <- structure(c(P1,P2,P3,P4,P5,P6,P7,P8), names = c("P1","P2","P3","P4",
+                                                         "P5","P6", "P7", "P8"))
+  return(out)
+}
 #=============================
 #8. Create position  
 #=============================  
@@ -552,6 +570,44 @@ create.position <- function(grouping){
     }else{
       position[i] <- which(names(fitted) == paste0("X", as.character(grouping[i])))
     }
+  }
+  fitted[] <- c(log(exp(runif(P_groups, 3,6))),log(exp(runif(X_groups+3, -3,1))))
+  
+  return(list("position"=position,"fitted"=fitted))
+}
+
+# Function for creating the position from which to draw each param from the fitted params vector
+create.position_constrained <- function(grouping){
+  #---------------------------
+  # Define fitting parameters 
+  #---------------------------
+  N_group <- 8 #   Number of groups fro partition and permeability coefficients
+  # Convert the binary encoding to integer
+  grouping <- decode_ga(chromosome)
+  # Define size of P and X groups
+  P_groups <- length(unique(grouping))  # sample size
+  X_groups <- P_groups
+  #set.seed(0)
+  # Initilise parameter values
+  fitted <- rep(NA,(P_groups+X_groups+3))
+  # Initialise naming vectors
+  pnames <- rep(NA, P_groups)
+  xnames <- rep(NA, X_groups)
+  
+  #Define names for P and X groups
+  for (i in 1:P_groups){
+    pnames[i] <- paste0("P", as.character(unique(grouping[1:N_group])[i]))
+  }
+  for (j in 1:X_groups){
+    xnames[j] <- paste0("X", as.character(unique(grouping[1:N_group])[j]))
+  }
+  # Define the total parameter vector names
+  names(fitted) <- c(pnames, xnames,"CLE_f", "CLE_u", "CLE_h")
+  # Variable for keeping which value in the fitted params vector corresponds to each coefficient
+  position = rep(NA, 2*length(grouping))
+  for (i in 1:(length(position)/2)){
+    position[i] <- which(names(fitted) == paste0("P", as.character(grouping[i])))
+    position[i+8] <- position[i] + P_groups
   }
   fitted[] <- c(log(exp(runif(P_groups, 3,6))),log(exp(runif(X_groups+3, -3,1))))
   
@@ -627,7 +683,7 @@ grouping_GAFP <- decode_ga_bin(GA_results@solution[1,])
 load("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm/ga_real_results_3P3X_real.RData")
 grouping_GATP <- decode_ga_real(GA_results@solution[1,])  
 load("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm/ga_real_results_same_P_and_X.RData")
-grouping_GACP <- decode_ga_real(GA_results@solution[1,])  
+grouping_GACP <- decode_gac_real(GA_results@solution[1,])  
 
 
 set.seed(1111)
@@ -636,7 +692,7 @@ position_MAEP <- create.position(grouping_MAEP)$position
 position_MIEP <- create.position(grouping_MIEP)$position
 position_GAFP <- create.position(grouping_GAFP)$position
 position_GATP <- create.position(grouping_GATP)$position
-position_GACP <- create.position(grouping_GACP)$position
+position_GACP <- create.position_constrained(grouping_GACP)$position
 
 
 MAX <- 1000
@@ -681,7 +737,7 @@ nm_optimizer_GATP<- dfoptim::nmk(par = fitted_GATP, fn = obj.func,
                                  position = position_GATP )
 params_GATP<- exp(nm_optimizer_GATP$par)
 
-fitted_GACP <-  create.position(grouping_GACP)$fitted
+fitted_GACP <-  create.position_constrained(grouping_GACP)$fitted
 nm_optimizer_GACP<- dfoptim::nmk(par = fitted_GACP, fn = obj.func,
                                  control = list(maxfeval=MAX, trace=T), y_init = y_init,
                                  time_points = time_points,
