@@ -494,7 +494,7 @@ create.position <- function(grouping){
 #===============
 # Load data  
 #===============
-setwd("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm")
+setwd("C:/Users/ptsir/Documents/GitHub/PBPK_Genetic_Algorithm")
 
 dose_kg <- 10 # mg/kg rat body
 mass <- 250 # g  

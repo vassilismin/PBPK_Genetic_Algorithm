@@ -741,28 +741,34 @@ observations <- data.frame( Time =c(24,  72, 168, 360, 720), excretion, df)
 
 library(ggplot2)
 
+# Defining the linetype and colour of each curve
+ltp <- c("R-squared" = "twodash","RMSD" ="dotted", "PBKOF" = "solid", "AAFE" = "longdash","PBPK index" = "dashed")
+cls <-  c("R-squared" = "#56B4E9", "RMSD" = "#E69F00", "PBKOF" ="#000000", "AAFE" = "#009E73", "PBPK index" ="#CC79A7",
+          "Observations" = "#D55E00")
+
+
 create.plots <- function(compartment){  
   excreta <- compartment %in% c("Feces", "Urine")
   ggplot(data = solution_r)+
-    geom_line( aes_string(x= "Time", y= rlang::expr(!!compartment), colour=shQuote("R-squared")), 
-               size=1.5,alpha = 0.7) +
+    geom_line( aes_string(x= "Time", y= rlang::expr(!!compartment), 
+                          color = '"R-squared"',linetype = '"R-squared"'),  size=1.5,alpha = 0.7) +
     geom_line(data=solution_pbpk, aes_string(x= "Time", y= rlang::expr(!!compartment),
-                                            colour=shQuote("PBPK index")), size=1.5,alpha = 0.7) +
+                                             color = '"PBPK index"',linetype ='"PBPK index"'), size=1.5,alpha = 0.9) +
     geom_line(data=solution_new, aes_string(x= "Time", y= rlang::expr(!!compartment),
-                                              colour=shQuote("New metric")), size=1.5,alpha = 0.7) +
-   # geom_line(data=solution_two, aes_string(x= "Time", y= rlang::expr(!!compartment),
-  #                                             colour=shQuote("Two-fold percentage")), size=1.5,alpha = 0.7) +
-    geom_line(data=solution_aafe, aes_string(x= "Time", y= rlang::expr(!!compartment),
-                                              colour=shQuote("AAFE")), size=1.5,alpha = 0.7) +
-    geom_line(data=solution_rmsd, aes_string(x= "Time", y= rlang::expr(!!compartment),
-                                             colour=shQuote("RMSD")), size=1.5,alpha = 0.7) +
-    geom_point(data=observations, aes_string(x="Time", y= rlang::expr(!!compartment),
-                                             colour=shQuote("Observations")), size=4)+
+                                            color =  '"PBKOF"',linetype =  '"PBKOF"'), size=1.5,alpha = 0.7) +
+    geom_line(data=solution_aafe, aes_string(x= "Time", y= rlang::expr(!!compartment), 
+                                             color = '"AAFE"',linetype ='"AAFE"'), size=1.5,alpha = 0.7) +
+    geom_line(data=solution_rmsd, aes_string(x= "Time", y= rlang::expr(!!compartment), 
+                                             color = '"RMSD"',linetype = '"RMSD"'), size=1.5,alpha = 0.7) +
+    geom_point(data=observations, aes_string(x="Time", y= rlang::expr(!!compartment), 
+                                             color='"Observations"'), size=4)+
     labs(title = rlang::expr(!!compartment), 
          y = ifelse(excreta,"TiO2 (mg)","TiO2 (mg/g tissue)" ),
          x = "Time (hours)")+
-    theme(plot.title = element_text(hjust = 0.5))#+
-  #scale_y_continuous(trans='log10')
+    theme(plot.title = element_text(hjust = 0.5))+
+  scale_y_continuous(trans='log10')+
+    scale_color_manual("",values=cls)+
+    scale_linetype_manual("Metrics", values=ltp)
   
 }
 plots <- lapply(names(observations)[2:length(observations)],create.plots)
@@ -776,8 +782,10 @@ p7 <-  plots[[7]]
 p8 <-  plots[[8]]
 p9 <-  plots[[9]]
 p10 <-  plots[[10]]
-gridExtra::grid.arrange(p1,p2,p3,p4,nrow = 2)
-gridExtra::grid.arrange(p5,p6,p7,p8,nrow = 2)
-gridExtra::grid.arrange(p9,p10,nrow = 2)
+#gridExtra::grid.arrange(p1,p2,p3,p4,p5,p6,p7,p8, p9,p10, nrow = 4)
+#gridExtra::grid.arrange(p5,p6,p7,p8,nrow = 2)
+#gridExtra::grid.arrange(p9,p10,nrow = 2)
 
+ggpubr::ggarrange(p1, p2, p3, p4,p5,p6,p7,p8, p9,p10, ncol=3, nrow=4, 
+                  common.legend = TRUE, legend="right")
 
