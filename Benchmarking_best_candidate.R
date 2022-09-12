@@ -694,24 +694,36 @@ position_GAFP <- create.position(grouping_GAFP)$position
 position_GATP <- create.position(grouping_GATP)$position
 position_GACP <- create.position_constrained(grouping_GACP)$position
 
-
-MAX <- 1000
+seeds <- sample(1:10000, 100)
+best_candidate <- 123
+best_value <- 10
+for (i in 1:100){
+  set.seed(seeds[i])
+MAX <- 50
 # Initialise fitted 
-set.seed(2881)
 fitted_MAEP <-  create.position(position_MAEP)$fitted
 nm_optimizer_MAEP<- dfoptim::nmk(par = fitted_MAEP, fn = obj.func,
-                                control = list(maxfeval=MAX, trace=T), y_init = y_init,
+                                control = list(maxfeval=MAX, trace=F), y_init = y_init,
                                 time_points = time_points,
                                 excretion_time_points =  excretion_time_points,
                                 sample_time = sample_time,
                                 phys_pars = phys_pars, 
                                 position = position_MAEP )
 params_MAEP<- exp(nm_optimizer_MAEP$par)
+current_value <- nm_optimizer_MAEP$value
+print(current_value)
+print(i)
+if(current_value < best_value){
+  best_value <- current_value
+  best_candidate <- seeds[i]
+}
+}
+
 
 
 fitted_MIEP <-  create.position(grouping_MIEP)$fitted
 nm_optimizer_MIEP<- dfoptim::nmk(par = fitted_MIEP, fn = obj.func,
-                                control = list(maxfeval=MAX, trace=T), y_init = y_init,
+                                control = list(maxfeval=MAX, trace=F), y_init = y_init,
                                 time_points = time_points,
                                 excretion_time_points =  excretion_time_points,
                                 sample_time = sample_time,
@@ -720,37 +732,82 @@ nm_optimizer_MIEP<- dfoptim::nmk(par = fitted_MIEP, fn = obj.func,
 params_MIEP<- exp(nm_optimizer_MIEP$par)
 
 
-set.seed(1713)
+
+seeds <- sample(1:10000, 100)
+best_candidate <- 123
+best_value <- 10
+for (i in 21:100){
+  set.seed(seeds[i])
+  MAX <- 1000
 fitted_GAFP <-  create.position(grouping_GAFP)$fitted
 nm_optimizer_GAFP<- dfoptim::nmk(par = fitted_GAFP, fn = obj.func,
-                                          control = list(maxfeval=MAX, trace=T), y_init = y_init,
+                                          control = list(maxfeval=MAX, trace=F), y_init = y_init,
                                           time_points = time_points,
                                           excretion_time_points =  excretion_time_points,
                                           sample_time = sample_time,
                                           phys_pars = phys_pars, 
                                           position = position_GAFP )
 params_GAFP<- exp(nm_optimizer_GAFP$par)
+current_value <- nm_optimizer_GAFP$value
+print(current_value)
+print(i)
+if(current_value < best_value){
+  best_value <- current_value
+  best_candidate <- seeds[i]
+}
+}
 
-set.seed(2043)
+
+
+seeds <- sample(1:10000, 100)
+best_candidate <- 123
+best_value <- 10
+for (i in 43:100){
+  set.seed(seeds[i])
+  MAX <- 1000
 fitted_GATP <-  create.position(grouping_GATP)$fitted
 nm_optimizer_GATP<- dfoptim::nmk(par = fitted_GATP, fn = obj.func,
-                                 control = list(maxfeval=MAX, trace=T), y_init = y_init,
+                                 control = list(maxfeval=MAX, trace=F), y_init = y_init,
                                  time_points = time_points,
                                  excretion_time_points =  excretion_time_points,
                                  sample_time = sample_time,
                                  phys_pars = phys_pars, 
                                  position = position_GATP )
 params_GATP<- exp(nm_optimizer_GATP$par)
+current_value <- nm_optimizer_GATP$value
+print(current_value)
+print(i)
+if(current_value < best_value){
+  best_value <- current_value
+  best_candidate <- seeds[i]
+}
+}
 
+
+seeds <- sample(1:10000, 100)
+best_candidate <- 123
+best_value <- 10
+for (i in 1:100){
+  set.seed(seeds[i])
+  MAX <- 1000
 fitted_GACP <-  create.position_constrained(grouping_GACP)$fitted
 nm_optimizer_GACP<- dfoptim::nmk(par = fitted_GACP, fn = obj.func,
-                                 control = list(maxfeval=MAX, trace=T), y_init = y_init,
+                                 control = list(maxfeval=MAX, trace=F), y_init = y_init,
                                  time_points = time_points,
                                  excretion_time_points =  excretion_time_points,
                                  sample_time = sample_time,
                                  phys_pars = phys_pars, 
                                  position = position_GACP )
 params_GACP<- exp(nm_optimizer_GACP$par)
+current_value <- nm_optimizer_GACP$value
+print(current_value)
+print(i)
+if(current_value < best_value){
+  best_value <- current_value
+  best_candidate <- seeds[i]
+}
+}
+
 
 
 
