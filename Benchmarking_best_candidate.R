@@ -583,7 +583,7 @@ create.position_constrained <- function(grouping){
   #---------------------------
   N_group <- 8 #   Number of groups fro partition and permeability coefficients
   # Convert the binary encoding to integer
-  grouping <- decode_ga(chromosome)
+  grouping <- decode_ga(grouping)
   # Define size of P and X groups
   P_groups <- length(unique(grouping))  # sample size
   X_groups <- P_groups
@@ -682,7 +682,7 @@ load("C:/Users/ptsir/Documents/GitHub/PBPK_Genetic_Algorithm/ga_bin_results_new_
 grouping_GAFP <- decode_ga_bin(GA_results@solution[1,])  
 load("C:/Users/ptsir/Documents/GitHub/PBPK_Genetic_Algorithm/ga_real_results_3P3X_real.RData")
 grouping_GATP <- decode_ga_real(GA_results@solution[1,])  
-load("C:/Users/ptsir/Documents/GitHub/PBPK_Genetic_Algorithm/ga_real_results_same_P_and_X.RData")
+load("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm/ga_real_results_same_P_and_X.RData")
 grouping_GACP <- decode_gac_real(GA_results@solution[1,])  
 
 

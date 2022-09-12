@@ -583,7 +583,7 @@ create.position_constrained <- function(grouping){
   #---------------------------
   N_group <- 8 #   Number of groups fro partition and permeability coefficients
   # Convert the binary encoding to integer
-  grouping <- decode_ga(chromosome)
+  grouping <- decode_ga(grouping)
   # Define size of P and X groups
   P_groups <- length(unique(grouping))  # sample size
   X_groups <- P_groups
