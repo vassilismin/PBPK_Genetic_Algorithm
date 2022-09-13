@@ -697,7 +697,7 @@ position_GACP <- create.position_constrained(grouping_GACP)$position
 
 MAX <- 1000
 # Initialise fitted 
-set.seed(2881)
+set.seed(9329)
 fitted_MAEP <-  create.position(position_MAEP)$fitted
 nm_optimizer_MAEP<- dfoptim::nmk(par = fitted_MAEP, fn = obj.func,
                                 control = list(maxfeval=MAX, trace=T), y_init = y_init,
@@ -709,6 +709,7 @@ nm_optimizer_MAEP<- dfoptim::nmk(par = fitted_MAEP, fn = obj.func,
 params_MAEP<- exp(nm_optimizer_MAEP$par)
 
 
+set.seed(5345)
 fitted_MIEP <-  create.position(grouping_MIEP)$fitted
 nm_optimizer_MIEP<- dfoptim::nmk(par = fitted_MIEP, fn = obj.func,
                                 control = list(maxfeval=MAX, trace=T), y_init = y_init,
@@ -720,7 +721,7 @@ nm_optimizer_MIEP<- dfoptim::nmk(par = fitted_MIEP, fn = obj.func,
 params_MIEP<- exp(nm_optimizer_MIEP$par)
 
 
-set.seed(1713)
+set.seed(8788)
 fitted_GAFP <-  create.position(grouping_GAFP)$fitted
 nm_optimizer_GAFP<- dfoptim::nmk(par = fitted_GAFP, fn = obj.func,
                                           control = list(maxfeval=MAX, trace=T), y_init = y_init,
@@ -731,7 +732,7 @@ nm_optimizer_GAFP<- dfoptim::nmk(par = fitted_GAFP, fn = obj.func,
                                           position = position_GAFP )
 params_GAFP<- exp(nm_optimizer_GAFP$par)
 
-set.seed(2043)
+set.seed(4761)
 fitted_GATP <-  create.position(grouping_GATP)$fitted
 nm_optimizer_GATP<- dfoptim::nmk(par = fitted_GATP, fn = obj.func,
                                  control = list(maxfeval=MAX, trace=T), y_init = y_init,
@@ -742,6 +743,8 @@ nm_optimizer_GATP<- dfoptim::nmk(par = fitted_GATP, fn = obj.func,
                                  position = position_GATP )
 params_GATP<- exp(nm_optimizer_GATP$par)
 
+
+set.seed(5408)
 fitted_GACP <-  create.position_constrained(grouping_GACP)$fitted
 nm_optimizer_GACP<- dfoptim::nmk(par = fitted_GACP, fn = obj.func,
                                  control = list(maxfeval=MAX, trace=T), y_init = y_init,
