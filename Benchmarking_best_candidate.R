@@ -678,9 +678,9 @@ phys_pars <- create.params(compartments,mass)
 # Create the parameter grouping for the max and ga problems
 grouping_MAEP <- c(1:8, 1:8)
 grouping_MIEP <- c(rep(1,8), rep(1,8))
-load("C:/Users/ptsir/Documents/GitHub/PBPK_Genetic_Algorithm/ga_bin_results_new_structure.RData")
+load("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm/ga_bin_results_new_structure.RData")
 grouping_GAFP <- decode_ga_bin(GA_results@solution[1,])  
-load("C:/Users/ptsir/Documents/GitHub/PBPK_Genetic_Algorithm/ga_real_results_3P3X_real.RData")
+load("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm/ga_real_results_3P3X_real.RData")
 grouping_GATP <- decode_ga_real(GA_results@solution[1,])  
 load("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm/ga_real_results_same_P_and_X.RData")
 grouping_GACP <- decode_gac_real(GA_results@solution[1,])  
@@ -694,12 +694,14 @@ position_GAFP <- create.position(grouping_GAFP)$position
 position_GATP <- create.position(grouping_GATP)$position
 position_GACP <- create.position_constrained(grouping_GACP)$position
 
-seeds <- sample(1:10000, 100)
-best_candidate <- 123
-best_value <- 10
-for (i in 1:100){
+
+MAX <- 1000
+set.seed(123)
+Reps <- 30
+seeds <- sample(1:10000, Reps)
+results_MAEP <- rep(NA,Reps)
+for (i in 1:Reps){
   set.seed(seeds[i])
-MAX <- 50
 # Initialise fitted 
 fitted_MAEP <-  create.position(position_MAEP)$fitted
 nm_optimizer_MAEP<- dfoptim::nmk(par = fitted_MAEP, fn = obj.func,
@@ -710,17 +712,15 @@ nm_optimizer_MAEP<- dfoptim::nmk(par = fitted_MAEP, fn = obj.func,
                                 phys_pars = phys_pars, 
                                 position = position_MAEP )
 params_MAEP<- exp(nm_optimizer_MAEP$par)
-current_value <- nm_optimizer_MAEP$value
-print(current_value)
+print(nm_optimizer_MAEP$value)
 print(i)
-if(current_value < best_value){
-  best_value <- current_value
-  best_candidate <- seeds[i]
-}
+results_MAEP[i] <- nm_optimizer_MAEP$value
 }
 
 
-
+results_MIEP <- rep(NA,Reps)
+for (i in 1:Reps){
+  set.seed(seeds[i])
 fitted_MIEP <-  create.position(grouping_MIEP)$fitted
 nm_optimizer_MIEP<- dfoptim::nmk(par = fitted_MIEP, fn = obj.func,
                                 control = list(maxfeval=MAX, trace=F), y_init = y_init,
@@ -730,15 +730,16 @@ nm_optimizer_MIEP<- dfoptim::nmk(par = fitted_MIEP, fn = obj.func,
                                 phys_pars = phys_pars, 
                                 position = position_MIEP )
 params_MIEP<- exp(nm_optimizer_MIEP$par)
+print(nm_optimizer_MIEP$value)
+print(i)
+results_MIEP[i] <- nm_optimizer_MIEP$value
+}
 
 
 
-seeds <- sample(1:10000, 100)
-best_candidate <- 123
-best_value <- 10
-for (i in 21:100){
+results_GAFP <- rep(NA,Reps)
+for (i in 1:Reps){
   set.seed(seeds[i])
-  MAX <- 1000
 fitted_GAFP <-  create.position(grouping_GAFP)$fitted
 nm_optimizer_GAFP<- dfoptim::nmk(par = fitted_GAFP, fn = obj.func,
                                           control = list(maxfeval=MAX, trace=F), y_init = y_init,
@@ -748,23 +749,15 @@ nm_optimizer_GAFP<- dfoptim::nmk(par = fitted_GAFP, fn = obj.func,
                                           phys_pars = phys_pars, 
                                           position = position_GAFP )
 params_GAFP<- exp(nm_optimizer_GAFP$par)
-current_value <- nm_optimizer_GAFP$value
-print(current_value)
+print(nm_optimizer_GAFP$value)
 print(i)
-if(current_value < best_value){
-  best_value <- current_value
-  best_candidate <- seeds[i]
-}
+results_GAFP[i] <- nm_optimizer_GAFP$value
 }
 
 
-
-seeds <- sample(1:10000, 100)
-best_candidate <- 123
-best_value <- 10
-for (i in 43:100){
+results_GATP <- rep(NA,Reps)
+for (i in 1:Reps){
   set.seed(seeds[i])
-  MAX <- 1000
 fitted_GATP <-  create.position(grouping_GATP)$fitted
 nm_optimizer_GATP<- dfoptim::nmk(par = fitted_GATP, fn = obj.func,
                                  control = list(maxfeval=MAX, trace=F), y_init = y_init,
@@ -774,22 +767,16 @@ nm_optimizer_GATP<- dfoptim::nmk(par = fitted_GATP, fn = obj.func,
                                  phys_pars = phys_pars, 
                                  position = position_GATP )
 params_GATP<- exp(nm_optimizer_GATP$par)
-current_value <- nm_optimizer_GATP$value
-print(current_value)
+print(nm_optimizer_GATP$value)
 print(i)
-if(current_value < best_value){
-  best_value <- current_value
-  best_candidate <- seeds[i]
-}
+results_GATP[i] <- nm_optimizer_GATP$value
 }
 
 
-seeds <- sample(1:10000, 100)
-best_candidate <- 123
-best_value <- 10
-for (i in 1:100){
+
+results_GACP <- rep(NA,Reps)
+for (i in 1:Reps){
   set.seed(seeds[i])
-  MAX <- 1000
 fitted_GACP <-  create.position_constrained(grouping_GACP)$fitted
 nm_optimizer_GACP<- dfoptim::nmk(par = fitted_GACP, fn = obj.func,
                                  control = list(maxfeval=MAX, trace=F), y_init = y_init,
@@ -799,13 +786,9 @@ nm_optimizer_GACP<- dfoptim::nmk(par = fitted_GACP, fn = obj.func,
                                  phys_pars = phys_pars, 
                                  position = position_GACP )
 params_GACP<- exp(nm_optimizer_GACP$par)
-current_value <- nm_optimizer_GACP$value
-print(current_value)
+print(nm_optimizer_GACP$value)
 print(i)
-if(current_value < best_value){
-  best_value <- current_value
-  best_candidate <- seeds[i]
-}
+results_GACP[i] <- nm_optimizer_GACP$value
 }
 
 
