@@ -678,11 +678,11 @@ phys_pars <- create.params(compartments,mass)
 # Create the parameter grouping for the max and ga problems
 grouping_MAEP <- c(1:8, 1:8)
 grouping_MIEP <- c(rep(1,8), rep(1,8))
-load("C:/Users/ptsir/Documents/GitHub/PBPK_Genetic_Algorithm/ga_bin_results_new_structure.RData")
+load("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm/ga_bin_results_new_structure.RData")
 grouping_GAFP <- decode_ga_bin(GA_results@solution[1,])  
-load("C:/Users/ptsir/Documents/GitHub/PBPK_Genetic_Algorithm/ga_real_results_3P3X_real.RData")
+load("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm/ga_real_results_3P3X_real.RData")
 grouping_GATP <- decode_ga_real(GA_results@solution[1,])  
-load("C:/Users/ptsir/Documents/GitHub/PBPK_Genetic_Algorithm/ga_real_results_same_P_and_X.RData")
+load("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm/ga_real_results_same_P_and_X.RData")
 grouping_GACP <- decode_gac_real(GA_results@solution[1,])  
 
 
@@ -695,7 +695,7 @@ position_GATP <- create.position(grouping_GATP)$position
 position_GACP <- create.position_constrained(grouping_GACP)$position
 
 
-MAX <- 1000
+MAX <- 2000
 # Initialise fitted 
 set.seed(9329)
 fitted_MAEP <-  create.position(position_MAEP)$fitted
@@ -963,22 +963,24 @@ metric.print(solution_GACP)
 library(ggplot2)
 
 # Defining the linetype and colour of each curve
-ltp <- c("MAEP" = "twodash", "GAFP" = "solid", "GATP" = "dotted","GACP" = "dashed")
-cls <-  c("MAEP" = "#56B4E9",  "GAFP" ="#000000", "GATP" = "#009E73", "GACP" ="#CC79A7",
-          "Observations" = "#D55E00")
+ltp <- c("MANG" = "twodash", "FPG" = "solid", "PNG" = "dotted","SPPCG" = "dashed", "MING" = "dotdash" )
+cls <-  c("MANG" = "#56B4E9",  "FPG" ="#000000", "PNG" = "#009E73", "SPPCG" ="#CC79A7",
+          "Observations" = "#D55E00", "MING" = "#E69F00")
 
 
 create.plots <- function(compartment){  
   excreta <- compartment %in% c("Feces", "Urine")
   ggplot(data = solution_MAEP)+
     geom_line( aes_string(x= "Time", y= rlang::expr(!!compartment), 
-                          color = '"MAEP"',linetype = '"MAEP"'),  size=1.5,alpha = 0.7) +
+                          color = '"MANG"',linetype = '"MANG"'),  size=1.5,alpha = 0.7) +
     geom_line(data=solution_GAFP, aes_string(x= "Time", y= rlang::expr(!!compartment),
-                                             color = '"GAFP"',linetype ='"GAFP"'), size=1.5,alpha = 0.9) +
+                                             color = '"FPG"',linetype ='"FPG"'), size=1.5,alpha = 0.7) +
+    geom_line(data=solution_MIEP, aes_string(x= "Time", y= rlang::expr(!!compartment),
+                                             color = '"MING"',linetype ='"MING"'), size=1.5,alpha = 0.7) +
     geom_line(data=solution_GATP, aes_string(x= "Time", y= rlang::expr(!!compartment),
-                                            color =  '"GATP"',linetype =  '"GATP"'), size=1.5,alpha = 0.7) +
+                                            color =  '"PNG"',linetype =  '"PNG"'), size=1.5,alpha = 0.7) +
     geom_line(data=solution_GACP, aes_string(x= "Time", y= rlang::expr(!!compartment), 
-                                             color = '"GACP"',linetype ='"GACP"'), size=1.5,alpha = 0.7) +
+                                             color = '"SPPCG"',linetype ='"SPPCG"'), size=1.5,alpha = 0.7) +
     geom_point(data=observations, aes_string(x="Time", y= rlang::expr(!!compartment), 
                                              color='"Observations"'), size=4)+
     labs(title = rlang::expr(!!compartment), 
@@ -986,8 +988,12 @@ create.plots <- function(compartment){
          x = "Time (hours)")+
     theme(plot.title = element_text(hjust = 0.5))+
     {if(compartment %in% c("Blood", "Heart", "Lungs", "Kidneys", "Git" ))scale_y_continuous(trans='log10')}+
-    scale_color_manual("Models", values=cls)+
-    scale_linetype_manual("", values=ltp)
+    scale_color_manual("", values=cls)+
+    scale_linetype_manual("Models", values=ltp) +
+    theme(legend.key.size = unit(1.5, 'cm'),  
+    legend.title = element_text(size=14),
+  legend.text = element_text(size=14),
+  axis.text = element_text(size = 14))
   
 }
 plots <- lapply(names(observations)[2:length(observations)],create.plots)
