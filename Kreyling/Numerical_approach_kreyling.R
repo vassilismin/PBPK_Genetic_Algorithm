@@ -134,7 +134,7 @@ create.inits <- function(parameters, dose){
     M_cap_ht<-0; M_cap_lu<-0; M_cap_li<-0; M_cap_spl<-0; M_cap_ki<-0; M_cap_git<-0; M_cap_bone<-0; M_cap_rob<-0;
     
     M_lumen <- 0;
-    M_ven<-dose; M_art<-0
+    M_ven <- dose; M_art<-0
     M_feces<-0; M_urine<-0 
     
     return(c("M_ht" = M_ht, "M_lu" = M_lu, 
@@ -657,11 +657,11 @@ metric.print <- function(x){
   observed[[i+1]] <- excretion #feces
   predicted[[i+1]] <- excr_solution #feces
   
-  print(pbpk.index(observed, predicted))
-  print(r.squared(observed, predicted))
-  print(AAFE(observed, predicted))
-  print(rmsd(observed, predicted))
-  print(two.fold(observed, predicted))
+  print(paste0("PBPK index is: ", pbpk.index(observed, predicted)))
+  print(paste0("PBPK index is: ", r.squared(observed, predicted)))
+  print(paste0("PBPK index is: ", AAFE(observed, predicted)))
+  print(paste0("PBPK index is: ",rmsd(observed, predicted)))
+  print(paste0("PBPK index is: ", two.fold(observed, predicted)))
 }
 
 metric.print(solution_MAEP)
@@ -689,7 +689,7 @@ create.plots <- function(compartment){
          y = ifelse(excreta,"TiO2 (ug)","TiO2 (ug/g tissue)" ),
          x = "Time (hours)")+
     theme(plot.title = element_text(hjust = 0.5))+
-   # {if(compartment %in% c("Blood", "Heart", "Lungs", "Kidneys", "Git" ))scale_y_continuous(trans='log10')}+
+    {if(compartment %in% c("Blood" ))scale_y_continuous(trans='log10')}+
     scale_color_manual("", values=cls)+
     scale_linetype_manual("Models", values=ltp) +
     theme(legend.key.size = unit(1.5, 'cm'),  
@@ -708,11 +708,10 @@ p6 <-  plots[[6]]
 p7 <-  plots[[7]]
 p8 <-  plots[[8]]
 p9 <-  plots[[9]]
-p10 <-  plots[[10]]
 #gridExtra::grid.arrange(p1,p2,p3,p4,p5,p6,p7,p8, p9,p10, nrow = 4)
 #gridExtra::grid.arrange(p5,p6,p7,p8,nrow = 2)
 #gridExtra::grid.arrange(p9,p10,nrow = 2)
 
-ggpubr::ggarrange(p1, p2, p3, p4,p5,p6,p7,p8, p9,p10, ncol=3, nrow=4, 
+ggpubr::ggarrange(p1, p2, p3, p4,p5,p6,p7,p8, p9, ncol=3, nrow=4, 
                   common.legend = TRUE, legend="right")
 
