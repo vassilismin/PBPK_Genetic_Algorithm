@@ -208,23 +208,28 @@ create.inits <- function(parameters, dose){
 ode.func <- function(time, inits, params){
   with(as.list(c(inits, params)),{
     
-    x_ht <- x_gen
-    x_lu <- x_gen
-    x_li <- x_gen
-    x_spl <- x_gen
-    x_ki <- x_gen
-    x_git <- x_gen 
-    x_bone <- x_gen
-    x_rob <- x_gen
+    P_ht <- fit_pars[position[1]]
+    P_lu <- fit_pars[position[2]]
+    P_li <- fit_pars[position[3]]
+    P_spl <- fit_pars[position[4]]
+    P_ki <- fit_pars[position[5]]
+    P_git <- fit_pars[position[6]]
+    P_bone <- fit_pars[position[7]]
+    P_rob <- fit_pars[position[8]]
     
-    P_ht <- P_gen
-    P_lu <- P_gen
-    P_li <- P_gen
-    P_spl <- P_gen
-    P_ki <- P_gen
-    P_git <- P_gen 
-    P_bone <- P_gen
-    P_rob <- P_gen
+    x_ht <- fit_pars[position[9]]
+    x_lu <- fit_pars[position[10]]
+    x_li <- fit_pars[position[11]]
+    x_spl <- fit_pars[position[12]]
+    x_ki <- fit_pars[position[13]]
+    x_git <- fit_pars[position[14]]
+    x_bone <- fit_pars[position[15]]
+    x_rob <- fit_pars[position[16]]
+    
+    CLE_f <- fit_pars[length(fit_pars)-2]
+    CLE_u <- fit_pars[length(fit_pars)-1]
+    CLE_h <- fit_pars[length(fit_pars)]
+    
     
     # Concentrations (mg of NPs)/(g of wet tissue)
     C_ht <- M_ht/w_ht
@@ -427,27 +432,313 @@ obj.func <- function(x){
 }
 
 
+fitness.metric <- function(observed, predicted, comp.names =NULL){
+  # Check if the user provided the correct input format
+  if (!is.list(observed) || !is.list(predicted)){
+    stop(" The observations and predictions must be lists")
+  }
+  # Check if the user provided equal length lists
+  if (length(observed) != length(predicted)){
+    stop(" The observations and predictions must have the same compartments")
+  }
+  Ncomp <- length(observed) # Number of compartments
+  I <- rep(NA, Ncomp) # Compartment discrepancy index
+  N_obs <- rep(NA, Ncomp) #Number of observations per compartment
+  #loop over the compartments
+  for (i in 1:Ncomp){
+    Et <- 0 #relative error with observations
+    St <- 0  #relative error with simulations
+    N <- length(observed[[i]]) # number of observations for compartment i
+    # Check if observations and predictions have equal length
+    if(N != length(predicted[[i]])){
+      stop(paste0("Compartment ",i," had different length in the observations and predictions"))
+    }
+    N_obs[i] <- N # populate the N_obs vector
+    for (j in 1:N){
+      # sum of relative squared errors (error = observed - predicted)
+      Et <- Et + ( abs(observed[[i]][j] - predicted[[i]][j])  / observed[[i]][j] )  ^2
+      St <- St + ( abs(observed[[i]][j] - predicted[[i]][j])  / predicted[[i]][j] )  ^2
+    }
+    
+    # root mean of the square of observed values
+    RMEt <- sqrt(Et/N)
+    # root mean of the square of simulated values
+    RMSt <- sqrt( St/N)
+    
+    I[i] <- (RMEt + RMSt)/2   
+  }
+  # Total number of observations
+  Ntot <- sum(N_obs)
+  # Initialise the consolidated discrepancy index
+  Ic <-0
+  for (i in 1:Ncomp){
+    # Give weight to compartments with more observations (more information)
+    Ic <- Ic +  I[i]* N_obs[i]/Ntot
+  }
+  # Name the list of compartment discrepancy indices
+  if ( !is.null(comp.names)){
+    names(I) <- comp.names
+  }else if (!is.null(names(observed))){
+    names(I) <- names(observed)
+  } else if (!is.null(names(predicted)) && is.null(comp.names) ){
+    names(I) <- names(predicted)
+  }
+  return(Ic)
+  #return(list(Total_index = Ic, Compartment_index= I))
+}
+
+
+#==================
+#6.Binary mapping 
+#==================
+# Function for mapping the binary number to integer
+# Since with 4 digits numbers from 0-15 can be mapped and here we have 8 
+# different compartments, every two integers correspond to one compartment
+bin2int <- function(bin_seq){
+  int <- GA::binary2decimal(bin_seq)
+  if(int == 0 || int == 1){
+    return(1)
+  }else if(int == 2 || int == 3){
+    return(2)
+  }else if(int == 4 || int == 5){
+    return(3)
+  }else if(int == 6 || int == 7){
+    return(4)
+  }else if(int == 8 || int == 9){
+    return(5)
+  }else if(int == 10 || int == 11){
+    return(6)
+  }else if(int == 12 || int == 13){
+    return(7)
+  }else if(int == 14 || int == 15){
+    return(8)
+  }
+}
+
+
+#=============================
+#7. Convert binary to grouping  
+#=============================
+# Function for converting binary into integer (from )
+decode_ga_bin <- function(binary_num)
+{ 
+  # Convert binary encoding to gray encoding to avoid the Hamming cliff problem
+  gray_num <- GA::gray2binary(binary_num) 
+  gray_num <- binary_num 
+  
+  #Four digit binary encodes up to 15, if we are past 13, assign the value 13
+  
+  # Partition coefficient grouping
+  P1 <-bin2int(gray_num[1:4])
+  P2 <-bin2int(gray_num[5:8])
+  P3 <-bin2int(gray_num[9:12])
+  P4 <-bin2int(gray_num[13:16])
+  P5 <-bin2int(gray_num[17:20])
+  P6 <-bin2int(gray_num[21:24])
+  P7 <-bin2int(gray_num[25:28])
+  P8 <-bin2int(gray_num[29:32])
+  
+  
+  # Permeability coefficient grouping
+  X1 <-bin2int(gray_num[33:36])
+  X2 <-bin2int(gray_num[37:40])
+  X3 <-bin2int(gray_num[41:44])
+  X4 <-bin2int(gray_num[45:48])
+  X5 <-bin2int(gray_num[49:52])
+  X6 <-bin2int(gray_num[53:56])
+  X7 <-bin2int(gray_num[57:60])
+  X8 <-bin2int(gray_num[61:64])
+  
+  out <- structure(c(P1,P2,P3,P4,P5,P6,P7,P8, X1,X2,X3,X4,X5,
+                     X6,X7,X8), names = c("P1","P2","P3","P4",
+                                          "P5","P6", "P7", "P8", "X1",
+                                          "X2", "X3", "X4", "X5", "X6", "X7", "X8"))
+  return(out)
+}
+
+
+decode_ga_real <- function(real_num)
+{ 
+  # Partition coefficient grouping
+  P1 <- floor(real_num[1])
+  P2 <- floor(real_num[2])
+  P3 <- floor(real_num[3])
+  P4 <- floor(real_num[4])
+  P5 <- floor(real_num[5])
+  P6 <- floor(real_num[6])
+  P7 <- floor(real_num[7])
+  P8 <- floor(real_num[8])
+  
+  
+  # Permeability coefficient grouping
+  X1 <- floor(real_num[9])
+  X2 <- floor(real_num[10])
+  X3 <- floor(real_num[11])
+  X4 <- floor(real_num[12])
+  X5 <- floor(real_num[13])
+  X6 <- floor(real_num[14])
+  X7 <- floor(real_num[15])
+  X8 <- floor(real_num[16])
+  
+  out <- structure(c(P1,P2,P3,P4,P5,P6,P7,P8, X1,X2,X3,X4,X5,
+                     X6,X7,X8), names = c("P1","P2","P3","P4",
+                                          "P5","P6", "P7", "P8", "X1",
+                                          "X2", "X3", "X4", "X5", "X6", "X7", "X8"))
+  return(out)
+}
+
+decode_gac_real <- function(real_num)
+{ 
+  # Partition coefficient grouping
+  P1 <- floor(real_num[1])
+  P2 <- floor(real_num[2])
+  P3 <- floor(real_num[3])
+  P4 <- floor(real_num[4])
+  P5 <- floor(real_num[5])
+  P6 <- floor(real_num[6])
+  P7 <- floor(real_num[7])
+  P8 <- floor(real_num[8])
+  
+  
+  out <- structure(c(P1,P2,P3,P4,P5,P6,P7,P8), names = c("P1","P2","P3","P4",
+                                                         "P5","P6", "P7", "P8"))
+  return(out)
+}
+#=============================
+#8. Create position  
+#=============================  
+# Function for creating the position from which to draw each param from the fitted params vector
+create.position <- function(grouping){
+  #---------------------------
+  # Define fitting parameters 
+  #---------------------------
+  N_p <-8 #   Number of partition coefficients
+  N_x <- 8#   Number of permeability coefficients  
+  # Define size of P and X groups
+  P_groups <- length(unique(grouping[1:N_p]))  # sample size
+  X_groups <- length(unique(grouping[(N_p+1):(N_p+N_x)]))  # sample size
+  # set.seed(0)
+  # Initilise parameter values
+  fitted <- rep(NA, P_groups+X_groups+3)
+  # Initialise naming vectors
+  pnames <- rep(NA, P_groups)
+  xnames <- rep(NA, X_groups)
+  
+  #Define names for P and X groups
+  for (i in 1:P_groups){
+    pnames[i] <- paste0("P", as.character(unique(grouping[1:N_p])[i]))
+  }
+  for (j in 1:X_groups){
+    xnames[j] <- paste0("X", as.character(unique(grouping[(N_p+1):(N_p+N_x)])[j]))
+  }
+  # Define the total parameter vector names
+  names(fitted) <- c(pnames, xnames,"CLE_f", "CLE_u", "CLE_h")
+  # Variable for keeping which value in the fitted params vector corresponds to each coefficient
+  position = rep(NA, length(grouping))
+  for (i in 1:(length(position))){
+    if(i<=8){
+      position[i] <- which(names(fitted) == paste0("P", as.character(grouping[i])))
+    }else{
+      position[i] <- which(names(fitted) == paste0("X", as.character(grouping[i])))
+    }
+  }
+  fitted[] <- c(log(exp(runif(P_groups, 3,6))),log(exp(runif(X_groups+3, -3,1))))
+  
+  return(list("position"=position,"fitted"=fitted))
+}
+
+# Function for creating the position from which to draw each param from the fitted params vector
+create.position_constrained <- function(grouping){
+  #---------------------------
+  # Define fitting parameters 
+  #---------------------------
+  N_group <- 8 #   Number of groups fro partition and permeability coefficients
+  # Convert the binary encoding to integer
+  grouping <- decode_ga(grouping)
+  # Define size of P and X groups
+  P_groups <- length(unique(grouping))  # sample size
+  X_groups <- P_groups
+  #set.seed(0)
+  # Initilise parameter values
+  fitted <- rep(NA,(P_groups+X_groups+3))
+  # Initialise naming vectors
+  pnames <- rep(NA, P_groups)
+  xnames <- rep(NA, X_groups)
+  
+  #Define names for P and X groups
+  for (i in 1:P_groups){
+    pnames[i] <- paste0("P", as.character(unique(grouping[1:N_group])[i]))
+  }
+  for (j in 1:X_groups){
+    xnames[j] <- paste0("X", as.character(unique(grouping[1:N_group])[j]))
+  }
+  # Define the total parameter vector names
+  names(fitted) <- c(pnames, xnames,"CLE_f", "CLE_u", "CLE_h")
+  # Variable for keeping which value in the fitted params vector corresponds to each coefficient
+  position = rep(NA, 2*length(grouping))
+  for (i in 1:(length(position)/2)){
+    position[i] <- which(names(fitted) == paste0("P", as.character(grouping[i])))
+    position[i+8] <- position[i] + P_groups
+  }
+  fitted[] <- c(log(exp(runif(P_groups, 3,6))),log(exp(runif(X_groups+3, -3,1))))
+  
+  return(list("position"=position,"fitted"=fitted))
+}
+
+
+
 #==============================
 # Nelder - Mead optimization
 #==============================
-set.seed(0)
-x0 <- log(runif(4, 1e-05,10))
-x0 <- log(c(100,1,0.1,0.1,0.1))
-names(x0) <- c("x_gen", "P_gen", "CLE_h", "CLE_u", "CLE_f")
+setwd("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm")
 
+dose_kg <- 10 # mg/kg rat body
+mass <- 250 # g  
+dose <- dose_kg*mass/1000 # mg TiO2
+
+# Load raw data from paper Xie et al.2011
+df <- openxlsx::read.xlsx("TiO2_iv_rat.xlsx", sheet = 1, colNames = T, rowNames = T) # TiO2 NPs %ID/g of tissue  (Table 1)
+excretion <- openxlsx::read.xlsx("Cummulative_Excretion.xlsx", sheet = 2, colNames = T, rowNames = F) # accumulated excretory rate, expressed as %ID
+excretion_time <- round(excretion[,1])*24 # hours
+excretion <- excretion[,c(2:3)]
+
+# Transform to (mg of NPs)/(g of tissue)
+df <- (df/100)*dose
+df$Intestine <- df$Intestine +df$Stomach
+colnames(df)[which(names(df)=="Intestine")] <- "Git"
+df <- subset(df, select = -c(Stomach, Brain))
+
+df[5,1] <- 1e-05
+
+excretion <- (excretion/100)*dose
+
+
+
+compartments <- list( "RoB"="RoB","Heart"="Heart", "Kidneys"="Kidneys", "Brain"= NA, "Spleen"="Spleen",
+                      "Lungs"="Lungs", "Liver"="Liver", "Uterus"=NA, "Bone"="Bone", "Adipose"=NA, "Skin"=NA, "Muscles"=NA, "GIT"="GIT") #used as input in function, compartments that are used in pbpk
+
+
+# Nelder-Mead from dfoptim package
+y_init <- c(dose, rep(0,20))
 time_points <- c(1,3,7, 15, 30)*24 # hours
 excretion_time_points <- excretion_time
 sample_time <- seq(0, 30*24, 1)
+# Initialise vector of physiological parameters
+phys_pars <- create.params(compartments,mass)
+
 physiological_params<-create.params(compartments,mass)
 inits <- create.inits(physiological_params, dose)
-
-
-start_time <- Sys.time()
-optimization <- optim(par = x0, fn = obj.func, method = c("Nelder-Mead"),
-                      control = list(trace=1, maxit=2000))
-end_time <- Sys.time()
-ODEs_solution_duration <- end_time - start_time
-ODEs_solution_duration
-
-
-#x_optimum <- exp(unlist(optimization["par"]))
+load("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm/ga_bin_results_new_structure.RData")
+grouping_GAFP <- decode_ga_bin(GA_results@solution[1,])  
+set.seed(1234)
+position_GAFP <- create.position(grouping_GAFP)$position
+set.seed(1234)
+fitted_GAFP <-  create.position(grouping_GAFP)$fitted
+MAX <- 1000
+nm_optimizer<- dfoptim::nmk(par = fitted_MAEP, fn = obj.func,
+                                 control = list(maxfeval=MAX, trace=T), y_init = y_init,
+                                 time_points = time_points,
+                                 excretion_time_points =  excretion_time_points,
+                                 sample_time = sample_time,
+                                 phys_pars = phys_pars, 
+                                 position = position_MAEP )
