@@ -1,16 +1,8 @@
-# This script creates plots for the maximum and GA problems
+library(deSolve)
 
-
-
-########################
-#======================
-#  ***  FUNCTIONS  ***
-#======================
-#######################
-
-#=====================
-#1. Create parameters  
-#=====================
+#####################################
+### Function to create Parameters ###
+#####################################
 create.params <- function(comp_names, w){
   
   # List with names of all possible compartments
@@ -25,7 +17,7 @@ create.params <- function(comp_names, w){
   
   Q_total <- (1.54*w^0.75)*60 # Total Cardiac Output (ml/h)
   
-  Total_Blood <- 0.06*w+0.77 # Total blood volume (ml)
+  Total_Blood <- 0.06*w+0.77 # Total blood volume (ml) 
   
   fr_ad <- 0.0199*w + 1.644 # w in g,  Brown et al.1997 p.420. This equation gives the  adipose % of body weight 
   
@@ -126,37 +118,45 @@ create.params <- function(comp_names, w){
 
 
 
-#=======================
-#2. Create system matrix  
-#=======================
-#--------------------------------------------------------------------------------------------------
-# "create_ODE_matrix()" creates the matrix with the coefficients of the state variables of the 
-# desired ODE system. It takes as input the values of parameters and returns the matrix.
-#--------------------------------------------------------------------------------------------------
-create_ODE_matrix <- function(phys_pars, fit_pars, position){
-  with( as.list(phys_pars),{
-    #============================
-    #Indexing of state variables
-    #============================
-    # x1 <- M_ven
-    # x2 <- M_art
+#===============================================
+#2. Function to create initial values for ODEs 
+#===============================================
+
+create.inits <- function(parameters, dose){
+  with( as.list(parameters),{
+    M_ht<-0; M_lu<-0; M_li<-0; M_spl<-0; M_ki<-0; M_git<-0; M_bone<-0; M_rob<-0;
     
-    # Capillaries       | Tissue  
-    # x3 <- M_cap_ht    | x4 <- M_ht
-    # x5 <- M_cap_lu    | x6 <- M_lu
-    # x7 <- M_cap_li    | x8 <- M_li
-    # x9 <- M_cap_spl   | x10 <- M_spl
-    # x11 <- M_cap_ki   | x12 <- M_ki
-    # x13 <- M_cap_git  | x14 <- M_git
-    # x15 <- M_cap_bone | x16 <- M_bone
-    # x17 <- M_cap_rob  | x18 <- M_rob 
-    # x19 <- M_feces    | x20 <- M_urine
-    # x21 <- M_lumen
+    M_cap_ht<-0; M_cap_lu<-0; M_cap_li<-0; M_li_pc <- 0; M_cap_spl<-0; M_cap_ki<-0; M_cap_git<-0; M_cap_bone<-0; M_cap_rob<-0;
     
-    # Matrix "A" contains the coefficients of the ODEs system of the PBPK. The ODEs system contains 20 variables, 
-    # so the dimensions of matrix A are 20x20. Each row of the matrix represents the differential equation of each 
-    # state variable x_i and each column represents the value of the coefficient of each state variable x_j in ODE 
-    # of each x_i. The indexing of state variables is analytically presented in the table "Indexing of state variables".
+    M_lumen <- 0;
+    M_ven<-dose; M_art<-0
+    M_feces<-0; M_urine<-0 
+    
+    return(c("M_ht" = M_ht, "M_lu" = M_lu, 
+             "M_li" = M_li, "M_spl" = M_spl, 
+             "M_ki" = M_ki, "M_git" = M_git, 
+             "M_bone" = M_bone,"M_rob"=M_rob,
+             
+             "M_cap_ht" = M_cap_ht, "M_cap_lu" = M_cap_lu, 
+             "M_cap_li" = M_cap_li,"M_li_pc" = M_li_pc, "M_cap_spl" = M_cap_spl, 
+             "M_cap_ki" = M_cap_ki, "M_cap_git" = M_cap_git, 
+             "M_cap_bone" = M_cap_bone,"M_cap_rob"=M_cap_rob,
+             
+             "M_lumen" = M_lumen,
+             "M_ven" = M_ven, "M_art" = M_art, "M_feces" = M_feces, "M_urine" = M_urine))
+    
+  })
+}
+
+#==============
+#3. ODEs System
+#==============
+ode.func <- function(time, inits, params){
+  position <- params[37:(37+15)]
+  fit_pars <- params[(37+16):length(params)]
+  
+  with(as.list(c(inits, params)),{
+    
     P_ht <- fit_pars[position[1]]
     P_lu <- fit_pars[position[2]]
     P_li <- fit_pars[position[3]]
@@ -175,148 +175,148 @@ create_ODE_matrix <- function(phys_pars, fit_pars, position){
     x_bone <- fit_pars[position[15]]
     x_rob <- fit_pars[position[16]]
     
-    CLE_f <- fit_pars[length(fit_pars)-2]
-    CLE_u <- fit_pars[length(fit_pars)-1]
-    CLE_h <- fit_pars[length(fit_pars)]
+    CLE_f <- fit_pars[length(fit_pars)-4]
+    CLE_u <- fit_pars[length(fit_pars)-3]
+    CLE_h <- fit_pars[length(fit_pars)-2]
+    kup <- fit_pars[length(fit_pars)-1]
+    kre <- fit_pars[length(fit_pars)]
     
-    A <- matrix(c(rep(0,21^2)), 
-                nrow = 21)
-    rownames(A) <- c("M_ven", "M_art",
-                     "M_cap_ht" ,"M_ht",
-                     "M_cap_lu" ,"M_lu",
-                     "M_cap_li" ,"M_li",
-                     "M_cap_spl" ,"M_spl",
-                     "M_cap_ki" ,"M_ki",
-                     "M_cap_git" ,"M_git",
-                     "M_cap_bone" ,"M_bone",
-                     "M_cap_rob" ,"M_rob", 
-                     "M_feces"  ,"M_urine",
-                     "M_lumen")
-    colnames(A) <- rownames(A)
     
-    #Venous
-    A[1,1]<- -Q_total/V_ven; A[1,3]<-Q_ht/V_cap_ht; A[1,7]<-(Q_spl+Q_li+Q_git)/V_cap_li; A[1,11]<-Q_ki/V_cap_ki;
-    A[1,15]<-Q_bone/V_cap_bone; A[1,17]<-Q_rob/V_cap_rob
+    # Concentrations (mg of NPs)/(g of wet tissue)
+    C_ht <- M_ht/w_ht
+    C_cap_ht <- M_cap_ht/V_cap_ht
+    C_lu <- M_lu/w_lu
+    C_cap_lu <- M_cap_lu/V_cap_lu
+    C_li <- M_li/w_li
+    C_cap_li <- M_cap_li/V_cap_li
+    C_spl <- M_spl/w_spl
+    C_cap_spl <- M_cap_spl/V_cap_spl
+    C_ki <- M_ki/w_ki
+    C_cap_ki <- M_cap_ki/V_cap_ki
+    C_git <- M_git/w_git
+    C_cap_git <- M_cap_git/V_cap_git
+    C_bone <- M_bone/w_bone
+    C_cap_bone <- M_cap_bone/V_cap_bone
+    C_rob <- M_rob/w_rob
+    C_cap_rob <- M_cap_rob/V_cap_rob
     
-    #Arterial
-    A[2,2]<- -Q_total/V_art; A[2,5]<-Q_total/V_cap_lu
+    C_ven <- M_ven/V_ven
+    C_art <- M_art/V_art
     
-    #Heart - Capillaries
-    A[3,2]<- Q_ht/V_art; A[3,3] <- -Q_ht/V_cap_ht -x_ht*Q_ht/V_cap_ht; A[3,4]<- x_ht*Q_ht/(w_ht*P_ht) 
-    #Heart - Tissue
-    A[4,3]<- x_ht*Q_ht/V_cap_ht; A[4,4] <- - x_ht*Q_ht/(w_ht*P_ht)
+    # Heart
+    dM_cap_ht <- Q_ht*(C_art - C_cap_ht) - x_ht*Q_ht*(C_cap_ht - C_ht/P_ht)
+    dM_ht <- x_ht*Q_ht*(C_cap_ht - C_ht/P_ht) 
     
-    #Lungs- Capillaries
-    A[5,1] <- Q_total/V_ven; A[5,5] <- -(Q_total/V_cap_lu + x_lu*Q_total/V_cap_lu); A[5,6] <- x_lu*Q_total/(w_lu*P_lu)
-    #Lungs - Tissue
-    A[6,5] <- x_lu*Q_total/V_cap_lu; A[6,6] <- -x_lu*Q_total/(w_lu*P_lu)
+    # Lungs
+    dM_cap_lu <- Q_total*(C_ven - C_cap_lu) - x_lu*Q_total*(C_cap_lu - C_lu/P_lu)
+    dM_lu <-  x_lu*Q_total*(C_cap_lu - C_lu/P_lu)
     
-    #Liver - capillaries
-    A[7,2] <- Q_li/V_art; A[7,7]<- -Q_li/V_cap_li - Q_spl/V_cap_li - Q_git/V_cap_li  - x_li*Q_li/V_cap_li; 
-    A[7,8] <- x_li*Q_li/(w_li*P_li); A[7,9] <- Q_spl/V_cap_spl; A[7,13] <- Q_git/V_cap_git
-    #Liver - Tissue
-    A[8,7]<-x_li*Q_li/V_cap_li; A[8,8]<- - x_li*Q_li/(w_li*P_li) - CLE_h
+    # Liver 
+    dM_cap_li <- Q_li*(C_art - C_cap_li) + Q_spl*(C_cap_spl - C_cap_li) + Q_git*(C_cap_git - C_cap_li) -
+      x_li*(Q_li)*(C_cap_li - C_li/P_li) - kup* M_cap_li + kre*M_li_pc
+    dM_li_pc <-  kup* M_cap_li - kre*M_li_pc
+    dM_li <- x_li*Q_li*(C_cap_li - C_li/P_li) - CLE_h*M_li
     
-    #Spleen - Capillaries
-    A[9,2] <- Q_spl/V_art; A[9,9]<- -Q_spl/V_cap_spl - x_spl*Q_spl/V_cap_spl; A[9,10] <- x_spl*Q_spl/(w_spl*P_spl)
-    #Spleen - Tissue
-    A[10,9] <- x_spl*Q_spl/V_cap_spl; A[10,10]<- -x_spl*Q_spl/(w_spl*P_spl)
+
+    # Spleen
+    dM_cap_spl <- Q_spl*(C_art - C_cap_spl) - x_spl*Q_spl*(C_cap_spl - C_spl/P_spl)
+    dM_spl <- x_spl*Q_spl*(C_cap_spl - C_spl/P_spl) 
     
-    # Kidneys - Capillaries
-    A[11,2] <- Q_ki/V_art; A[11,11] <- -Q_ki/V_cap_ki -x_ki*Q_ki/V_cap_ki - CLE_u; A[11,12] <- x_ki*Q_ki/(w_ki*P_ki)
-    #Kidneys -Tissue
-    A[12,11] <- x_ki*Q_ki/V_cap_ki; A[12,12] <- - x_ki*Q_ki/(w_ki*P_ki)
+    # Kidneys
+    dM_cap_ki <- Q_ki*(C_art - C_cap_ki) - x_ki*Q_ki*(C_cap_ki - C_ki/P_ki)- CLE_u*M_cap_ki
+    dM_ki <- x_ki*Q_ki*(C_cap_ki - C_ki/P_ki) 
     
-    #Git - Capillaries
-    A[13,2] <- Q_git/V_art; A[13,13] <- - Q_git/V_cap_git - x_git*Q_git/V_cap_git; A[13,14] <- x_git*Q_git/(w_git*P_git)
-    #Git - Tissue
-    A[14,13] <- x_git*Q_git/V_cap_git; A[14,14] <- - x_git*Q_git/(w_git*P_git) 
-    #Git - Lumen
-    A[21,8] <- CLE_h; A[21,21] <- - CLE_f
+    # GIT - Gastrointestinal Track
+    dM_cap_git <- Q_git*(C_art - C_cap_git) - x_git*Q_git*(C_cap_git - C_git/P_git)
+    dM_git <- x_git*Q_git*(C_cap_git - C_git/P_git) 
+    dM_lumen <- CLE_h*M_li - CLE_f *M_lumen 
     
-    #Bone - Capillaries
-    A[15,2] <- Q_bone/V_art; A[15,15]<- -Q_bone/V_cap_bone -x_bone*Q_bone/V_cap_bone; A[15,16] <- x_bone*Q_bone/(w_bone*P_bone)
-    #Bone - Tissue
-    A[16,15] <- x_bone*Q_bone/V_cap_bone; A[16,16] <- - x_bone*Q_bone/(w_bone*P_bone)
+    # Bone
+    dM_cap_bone <- Q_bone*(C_art - C_cap_bone) - x_bone*Q_bone*(C_cap_bone - C_bone/P_bone)
+    dM_bone <- x_bone*Q_bone*(C_cap_bone - C_bone/P_bone) 
     
-    #RoB - Capillaries
-    A[17,2] <- Q_rob/V_art; A[17,17] <- - Q_rob/V_cap_rob - x_rob*Q_rob/V_cap_rob; A[17,18] <- x_rob*Q_rob/(w_rob*P_rob)
-    #RoB - Tissue
-    A[18,17] <- x_rob*Q_rob/V_cap_rob; A[18,18] <- - x_rob*Q_rob/(w_rob*P_rob)
     
-    #Feces 
-    A[19,21] <- CLE_f
+    # RoB - Rest of Body
+    dM_cap_rob <- Q_rob*(C_art - C_cap_rob) - x_rob*Q_rob*(C_cap_rob - C_rob/P_rob)
+    dM_rob <- x_rob*Q_rob*(C_cap_rob - C_rob/P_rob) 
     
-    #Urine
-    A[20,11] <- CLE_u
+    # Urine
+    dM_urine <- CLE_u*M_cap_ki
     
-    return(A)
+    # Feces
+    dM_feces <- CLE_f*M_lumen
+    
+    # Venous Blood
+    dM_ven <- Q_ht*C_cap_ht + (Q_li + Q_spl+Q_git)*C_cap_li + Q_ki*C_cap_ki +
+      Q_bone*C_cap_bone + Q_rob*C_cap_rob - Q_total*C_ven
+    
+    # Arterial Blood
+    dM_art <-  Q_total*C_cap_lu - Q_total*C_art
+    
+    Blood_total <- M_ven + M_art + M_cap_ht + M_cap_lu +M_cap_li+M_cap_spl+
+      M_cap_ki+ M_cap_git+M_cap_bone+M_cap_rob
+    Blood <- Blood_total/(V_blood)
+    
+    C_git_total <- (M_git+M_lumen)/w_git
+    C_li_tot <- (M_li + M_li_pc)/ w_li
+    
+    list(c("dM_ht" = dM_ht, "dM_lu" = dM_lu, 
+           "dM_li" = dM_li, "dM_spl" = dM_spl, 
+           "dM_ki" = dM_ki, "dM_git" = dM_git, 
+           "dM_bone" = dM_bone,"dM_rob"=dM_rob,
+           
+           "dM_cap_ht" = dM_cap_ht, "dM_cap_lu" = dM_cap_lu, 
+           "dM_cap_li" = dM_cap_li, "dM_li_pc" = dM_li_pc, "dM_cap_spl" = dM_cap_spl, 
+           "dM_cap_ki" = dM_cap_ki, "dM_cap_git" = dM_cap_git, 
+           "dM_cap_bone" = dM_cap_bone,"dM_cap_rob"=dM_cap_rob,
+           
+           "dM_lumen" = dM_lumen,
+           "dM_ven" = dM_ven, "dM_art" = dM_art, "dM_feces" = dM_feces, "dM_urine" = dM_urine),
+         
+         "Blood"=Blood,
+         "C_ht"=C_ht, "C_lu"=C_lu, "C_li"=C_li_tot, "C_spl"=C_spl,
+         "C_ki"=C_ki, "C_git"=C_git_total, "C_bone"=C_bone, "C_rob"=C_rob,
+         "Feces"=M_feces, "Urine"=M_urine)
+  })
+}
+#======================
+#3. Objective function  
+#======================
+
+obj.func <- function(par,...){
+  dots <- list(...)
+  with(as.list(dots),{
+    
+  params <- c(phys_pars, position, exp(par))
+  solution <- data.frame(ode(times = sample_time,  func = ode.func,
+                             y = inits, parms = params, 
+                             method="bdf",rtol = 1e-7, atol = 1e-7))
+  
+  concentrations <- data.frame(solution$time,solution$Blood, solution$C_ht, solution$C_lu,
+                               solution$C_li, solution$C_spl, solution$C_ki,
+                               solution$C_git, solution$C_bone)
+  
+  concentrations <- concentrations[solution$time %in%time_points, 2:dim(concentrations)[2]]
+  excr_solution <-  data.frame(solution$time, solution$Feces, solution$Urine)
+  excr_solution <- excr_solution[solution$time %in% excretion_time_points, c(2:3)]
+  observed <- list()
+  predicted <- list()
+  
+  for (i in 1:length(concentrations)) {
+    observed[[i]] <- df[,i]
+    predicted[[i]] <- concentrations[,i]
+  }
+  observed[[i+1]] <- excretion[,1] #feces
+  observed[[i+2]] <- excretion[,2] #urine
+  predicted[[i+1]] <- excr_solution[,1] #feces
+  predicted[[i+2]] <- excr_solution[,2] #urine
+  
+  discrepancy <- fitness.metric(observed, predicted)
+  
+  return(discrepancy)
   })
 }
 
-#====================
-#3. Matrix exponent 
-#====================
-#--------------------------------------------------------------------------------------------------
-# "Solve_exp_matrix()" is a function that solves the ODE system using the matrix "x" (which 
-# contains the coefficients of the system), "time" which is the desired time points to 
-# be calculated and "y_init" is the initial values of the state variables.
-#--------------------------------------------------------------------------------------------------
-
-solve_exp_matrix <- function(x, time, y_init, phys_pars){
-  with( as.list(phys_pars),{
-    if(!is.matrix(x)){
-      stop("x must be a NxN matrix")
-    }
-    
-    if(!is.numeric(y_init)){
-      stop("y_init must be a numeric vector")
-    }
-    
-    if(dim(x)[1] != dim(x)[2]){
-      stop("Matrix x must be NxN")
-    }
-    
-    if(dim(x)[1] != length(y_init)){
-      stop("Dimension of y_init must be equal to dimension of matrix x")
-    }
-    
-    
-    y_t  <- matrix(data=NA, nrow = nrow(x), ncol = length(time))
-    colnames(y_t) <- as.character(time)
-    
-    y_t[,1] <- y_init
-    for (t in 2:length(time)) {
-      solution_t <- expm::expm(x*time[t])%*%y_init
-      y_t[,t] <- solution_t
-    }
-    rownames(y_t) <- rownames(x)
-    
-    y_t <- data.frame(t(y_t))
-    
-    # Transform TiO2 masses to concentrations
-    concentrations <- cbind(time,
-                            (y_t$M_ven + y_t$M_art + y_t$M_cap_ht + y_t$M_cap_lu +
-                               y_t$M_cap_li+y_t$M_cap_spl+
-                               y_t$M_cap_ki+ y_t$M_cap_git +
-                               y_t$M_cap_bone + y_t$M_cap_rob)/V_blood,
-                            
-                            y_t$M_ht/w_ht,
-                            y_t$M_lu/w_lu,
-                            y_t$M_li/w_li,
-                            y_t$M_spl/w_spl,
-                            y_t$M_ki/w_ki,
-                            (y_t$M_git+y_t$M_lumen)/w_git,
-                            y_t$M_bone/w_bone,
-                            y_t$M_feces,
-                            y_t$M_urine)
-    colnames(concentrations) <- c("Time","C_blood", "C_ht", "C_lu", "C_li",
-                                  "C_spl", "C_ki", "C_git", "C_bone", "Feces", "Urine")
-    
-    #return(list(y_t, concentrations))
-    return(data.frame(concentrations))
-  })
-}
 #===============
 #4. Improved fitness metric  
 #===============
@@ -383,40 +383,35 @@ fitness.metric <- function(observed, predicted, comp.names =NULL){
   return(Ic)
   #return(list(Total_index = Ic, Compartment_index= I))
 }
-#======================
-#5. Objective function  
-#======================
 
-obj.func <- function(params, ...){
+decode_ga_real <- function(real_num){ 
+  # Partition coefficient grouping
+  P1 <- floor(real_num[1])
+  P2 <- floor(real_num[2])
+  P3 <- floor(real_num[3])
+  P4 <- floor(real_num[4])
+  P5 <- floor(real_num[5])
+  P6 <- floor(real_num[6])
+  P7 <- floor(real_num[7])
+  P8 <- floor(real_num[8])
   
-  dots <- list(...)
-  with(as.list(dots),{
-    
-    # Create the matrix of the system  
-    A <- create_ODE_matrix(phys_pars = phys_pars, fit_pars =exp(params),  position = position )
-    # Solve the ODE system using the exponential matrix method  
-    solution <-  solve_exp_matrix(x = A, time = sample_time, y_init = y_init,phys_pars = phys_pars )
-    
-    concentrations <- solution[solution$Time %in% time_points, 2:(dim(solution)[2]-2)]
-    excr_solution <-  data.frame(solution$Time, solution$Feces, solution$Urine)
-    excr_solution <- excr_solution[solution$Time %in% excretion_time_points, c(2:3)]
-    
-    observed <- list()
-    predicted <- list()
-    
-    for (i in 1:(length(concentrations))) {
-      observed[[i]] <- df[,i]
-      predicted[[i]] <- concentrations[,i]
-    }
-    observed[[i+1]] <- excretion[,1] #feces
-    observed[[i+2]] <- excretion[,2] #urine
-    predicted[[i+1]] <- excr_solution[,1] #feces
-    predicted[[i+2]] <- excr_solution[,2] #urine
-    discrepancy <- fitness.metric(observed, predicted)
-    return(discrepancy)
-  })
+  
+  # Permeability coefficient grouping
+  X1 <- floor(real_num[9])
+  X2 <- floor(real_num[10])
+  X3 <- floor(real_num[11])
+  X4 <- floor(real_num[12])
+  X5 <- floor(real_num[13])
+  X6 <- floor(real_num[14])
+  X7 <- floor(real_num[15])
+  X8 <- floor(real_num[16])
+  
+  out <- structure(c(P1,P2,P3,P4,P5,P6,P7,P8, X1,X2,X3,X4,X5,
+                     X6,X7,X8), names = c("P1","P2","P3","P4",
+                                          "P5","P6", "P7", "P8", "X1",
+                                          "X2", "X3", "X4", "X5", "X6", "X7", "X8"))
+  return(out)
 }
-
 #==================
 #6.Binary mapping 
 #==================
@@ -484,55 +479,6 @@ decode_ga_bin <- function(binary_num)
                                           "X2", "X3", "X4", "X5", "X6", "X7", "X8"))
   return(out)
 }
-
-
-decode_ga_real <- function(real_num)
-{ 
-  # Partition coefficient grouping
-  P1 <- floor(real_num[1])
-  P2 <- floor(real_num[2])
-  P3 <- floor(real_num[3])
-  P4 <- floor(real_num[4])
-  P5 <- floor(real_num[5])
-  P6 <- floor(real_num[6])
-  P7 <- floor(real_num[7])
-  P8 <- floor(real_num[8])
-  
-  
-  # Permeability coefficient grouping
-  X1 <- floor(real_num[9])
-  X2 <- floor(real_num[10])
-  X3 <- floor(real_num[11])
-  X4 <- floor(real_num[12])
-  X5 <- floor(real_num[13])
-  X6 <- floor(real_num[14])
-  X7 <- floor(real_num[15])
-  X8 <- floor(real_num[16])
-  
-  out <- structure(c(P1,P2,P3,P4,P5,P6,P7,P8, X1,X2,X3,X4,X5,
-                     X6,X7,X8), names = c("P1","P2","P3","P4",
-                                          "P5","P6", "P7", "P8", "X1",
-                                          "X2", "X3", "X4", "X5", "X6", "X7", "X8"))
-  return(out)
-}
-
-decode_gac_real <- function(real_num)
-{ 
-  # Partition coefficient grouping
-  P1 <- floor(real_num[1])
-  P2 <- floor(real_num[2])
-  P3 <- floor(real_num[3])
-  P4 <- floor(real_num[4])
-  P5 <- floor(real_num[5])
-  P6 <- floor(real_num[6])
-  P7 <- floor(real_num[7])
-  P8 <- floor(real_num[8])
-  
-  
-  out <- structure(c(P1,P2,P3,P4,P5,P6,P7,P8), names = c("P1","P2","P3","P4",
-                                                         "P5","P6", "P7", "P8"))
-  return(out)
-}
 #=============================
 #8. Create position  
 #=============================  
@@ -548,7 +494,7 @@ create.position <- function(grouping){
   X_groups <- length(unique(grouping[(N_p+1):(N_p+N_x)]))  # sample size
   # set.seed(0)
   # Initilise parameter values
-  fitted <- rep(NA, P_groups+X_groups+3)
+  fitted <- rep(NA, P_groups+X_groups+5)
   # Initialise naming vectors
   pnames <- rep(NA, P_groups)
   xnames <- rep(NA, X_groups)
@@ -561,7 +507,7 @@ create.position <- function(grouping){
     xnames[j] <- paste0("X", as.character(unique(grouping[(N_p+1):(N_p+N_x)])[j]))
   }
   # Define the total parameter vector names
-  names(fitted) <- c(pnames, xnames,"CLE_f", "CLE_u", "CLE_h")
+  names(fitted) <- c(pnames, xnames,"CLE_f", "CLE_u", "CLE_h", "kup", "kre")
   # Variable for keeping which value in the fitted params vector corresponds to each coefficient
   position = rep(NA, length(grouping))
   for (i in 1:(length(position))){
@@ -571,45 +517,7 @@ create.position <- function(grouping){
       position[i] <- which(names(fitted) == paste0("X", as.character(grouping[i])))
     }
   }
-  fitted[] <- c(log(exp(runif(P_groups, 3,6))),log(exp(runif(X_groups+3, -3,1))))
-  
-  return(list("position"=position,"fitted"=fitted))
-}
-
-# Function for creating the position from which to draw each param from the fitted params vector
-create.position_constrained <- function(grouping){
-  #---------------------------
-  # Define fitting parameters 
-  #---------------------------
-  N_group <- 8 #   Number of groups fro partition and permeability coefficients
-  # Convert the binary encoding to integer
-  grouping <- decode_ga(grouping)
-  # Define size of P and X groups
-  P_groups <- length(unique(grouping))  # sample size
-  X_groups <- P_groups
-  #set.seed(0)
-  # Initilise parameter values
-  fitted <- rep(NA,(P_groups+X_groups+3))
-  # Initialise naming vectors
-  pnames <- rep(NA, P_groups)
-  xnames <- rep(NA, X_groups)
-  
-  #Define names for P and X groups
-  for (i in 1:P_groups){
-    pnames[i] <- paste0("P", as.character(unique(grouping[1:N_group])[i]))
-  }
-  for (j in 1:X_groups){
-    xnames[j] <- paste0("X", as.character(unique(grouping[1:N_group])[j]))
-  }
-  # Define the total parameter vector names
-  names(fitted) <- c(pnames, xnames,"CLE_f", "CLE_u", "CLE_h")
-  # Variable for keeping which value in the fitted params vector corresponds to each coefficient
-  position = rep(NA, 2*length(grouping))
-  for (i in 1:(length(position)/2)){
-    position[i] <- which(names(fitted) == paste0("P", as.character(grouping[i])))
-    position[i+8] <- position[i] + P_groups
-  }
-  fitted[] <- c(log(exp(runif(P_groups, 3,6))),log(exp(runif(X_groups+3, -3,1))))
+  fitted[] <- c(log(exp(runif(P_groups, 3,6))),log(exp(runif(X_groups+5, -3,1))))
   
   return(list("position"=position,"fitted"=fitted))
 }
@@ -671,186 +579,35 @@ excretion_time_points <- excretion_time
 sample_time <- seq(0, 30*24, 1)
 # Initialise vector of physiological parameters
 phys_pars <- create.params(compartments,mass)
+inits <- create.inits(phys_pars, dose)
 
-
-
-
-# Create the parameter grouping for the max and ga problems
 grouping_MAEP <- c(1:8, 1:8)
-grouping_MIEP <- c(rep(1,8), rep(1,8))
-load("C:/Users/ptsir/Documents/GitHub/PBPK_Genetic_Algorithm/ga_bin_results_new_structure.RData")
-grouping_GAFP <- decode_ga_bin(GA_results@solution[1,])  
-load("C:/Users/ptsir/Documents/GitHub/PBPK_Genetic_Algorithm/ga_real_results_3P3X_real.RData")
-grouping_GATP <- decode_ga_real(GA_results@solution[1,])  
-load("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm/ga_real_results_same_P_and_X.RData")
-grouping_GACP <- decode_gac_real(GA_results@solution[1,])  
-
-
-set.seed(1234)
-# Create the position vector to match the ODE parameters with the fitted parameter values
 position_MAEP <- create.position(grouping_MAEP)$position
-position_MIEP <- create.position(grouping_MIEP)$position
-position_GAFP <- create.position(grouping_GAFP)$position
-position_GATP <- create.position(grouping_GATP)$position
-position_GACP <- create.position_constrained(grouping_GACP)$position
 
-seeds <- sample(1:10000, 30)
-results_MAEP <- rep(NA, 30)
-for (i in 1:100){
-  set.seed(seeds[i])
-MAX <- 1000
-# Initialise fitted 
+set.seed(633302)
 fitted_MAEP <-  create.position(position_MAEP)$fitted
+
+MAX = 1000
 nm_optimizer_MAEP<- dfoptim::nmk(par = fitted_MAEP, fn = obj.func,
-                                control = list(maxfeval=MAX, trace=F), y_init = y_init,
-                                time_points = time_points,
-                                excretion_time_points =  excretion_time_points,
-                                sample_time = sample_time,
-                                phys_pars = phys_pars, 
-                                position = position_MAEP )
+                                 control = list(maxfeval=MAX, trace=T), inits = inits,
+                                 time_points = time_points,
+                                 excretion_time_points =  excretion_time_points,
+                                 sample_time = sample_time,
+                                 phys_pars = phys_pars, 
+                                 position = position_MAEP)
 params_MAEP<- exp(nm_optimizer_MAEP$par)
-print(nm_optimizer_MAEP$value)
-print(i)
-results_MAEP[i] <- nm_optimizer_MAEP$value
-}
 
 
-seeds <- sample(1:10000, 30)
-results_MIEP <- rep(NA, 30)
-for (i in 1:30){
-  set.seed(seeds[i])
-  MAX <- 1000
-fitted_MIEP <-  create.position(grouping_MIEP)$fitted
-nm_optimizer_MIEP<- dfoptim::nmk(par = fitted_MIEP, fn = obj.func,
-                                control = list(maxfeval=MAX, trace=F), y_init = y_init,
-                                time_points = time_points,
-                                excretion_time_points =  excretion_time_points,
-                                sample_time = sample_time,
-                                phys_pars = phys_pars, 
-                                position = position_MIEP )
-params_MIEP<- exp(nm_optimizer_MIEP$par)
-print(nm_optimizer_MIEP$value)
-print(i)
-results_MIEP[i] <- nm_optimizer_MIEP$value
-}
+params <- c(phys_pars, position_MAEP, params_MAEP)
+solution <- data.frame(ode(times = sample_time,  func = ode.func,
+                           y = inits, parms = params, 
+                           method="bdf",rtol = 1e-5, atol = 1e-5))
 
-
-
-seeds <- sample(1:10000, 100)
-best_candidate <- 123
-best_value <- 10
-for (i in 21:100){
-  set.seed(seeds[i])
-  MAX <- 1000
-fitted_GAFP <-  create.position(grouping_GAFP)$fitted
-nm_optimizer_GAFP<- dfoptim::nmk(par = fitted_GAFP, fn = obj.func,
-                                          control = list(maxfeval=MAX, trace=F), y_init = y_init,
-                                          time_points = time_points,
-                                          excretion_time_points =  excretion_time_points,
-                                          sample_time = sample_time,
-                                          phys_pars = phys_pars, 
-                                          position = position_GAFP )
-params_GAFP<- exp(nm_optimizer_GAFP$par)
-current_value <- nm_optimizer_GAFP$value
-print(current_value)
-print(i)
-if(current_value < best_value){
-  best_value <- current_value
-  best_candidate <- seeds[i]
-}
-}
-
-
-
-seeds <- sample(1:10000, 100)
-results_GATP <- rep(NA, 30)
-for (i in 1:30){
-  set.seed(seeds[i])
-  MAX <- 1000
-fitted_GATP <-  create.position(grouping_GATP)$fitted
-nm_optimizer_GATP<- dfoptim::nmk(par = fitted_GATP, fn = obj.func,
-                                 control = list(maxfeval=MAX, trace=F), y_init = y_init,
-                                 time_points = time_points,
-                                 excretion_time_points =  excretion_time_points,
-                                 sample_time = sample_time,
-                                 phys_pars = phys_pars, 
-                                 position = position_GATP )
-params_GATP<- exp(nm_optimizer_GATP$par)
-current_value <- nm_optimizer_GATP$value
-print(nm_optimizer_GATP$value)
-print(i)
-results_GATP[i] <- nm_optimizer_GATP$value
-}
-
-
-seeds <- sample(1:10000, 100)
-best_candidate <- 123
-best_value <- 10
-for (i in 1:100){
-  set.seed(seeds[i])
-  MAX <- 1000
-fitted_GACP <-  create.position_constrained(grouping_GACP)$fitted
-nm_optimizer_GACP<- dfoptim::nmk(par = fitted_GACP, fn = obj.func,
-                                 control = list(maxfeval=MAX, trace=F), y_init = y_init,
-                                 time_points = time_points,
-                                 excretion_time_points =  excretion_time_points,
-                                 sample_time = sample_time,
-                                 phys_pars = phys_pars, 
-                                 position = position_GACP )
-params_GACP<- exp(nm_optimizer_GACP$par)
-current_value <- nm_optimizer_GACP$value
-print(current_value)
-print(i)
-if(current_value < best_value){
-  best_value <- current_value
-  best_candidate <- seeds[i]
-}
-}
-
-
-
-
-
-
-# Create the matrix of the system  
-A_MAEP <- create_ODE_matrix(phys_pars = phys_pars, fit_pars = params_MAEP,  position = position_MAEP)
-A_MIEP <- create_ODE_matrix(phys_pars = phys_pars, fit_pars = params_MIEP,  position = position_MIEP)
-A_GAFP <- create_ODE_matrix(phys_pars = phys_pars, fit_pars = params_GAFP,  position = position_GAFP)
-A_GATP <- create_ODE_matrix(phys_pars = phys_pars, fit_pars = params_GATP,  position = position_GATP)
-A_GACP <- create_ODE_matrix(phys_pars = phys_pars, fit_pars = params_GACP,  position = position_GACP)
-
-
-# Solve the ODE system using the exponential matrix method  
-solution_MAEP <-  as.data.frame(solve_exp_matrix(x = A_MAEP, time = sample_time, 
-                                                y_init = y_init,phys_pars = phys_pars ))
+solution_MAEP <- data.frame(solution$time,solution$Blood, solution$C_ht, solution$C_lu,
+                             solution$C_li, solution$C_spl, solution$C_ki,
+                             solution$C_git, solution$C_bone,solution$Feces, solution$Urine)
 names(solution_MAEP) <- c("Time", "Blood", "Heart", "Lungs", "Liver",  "Spleen",
-                         "Kidneys","Git", "Bone",  "Feces", "Urine")
-
-# Solve the ODE system using the exponential matrix method  
-solution_MIEP <-  as.data.frame(solve_exp_matrix(x = A_MIEP, time = sample_time, 
-                                                 y_init = y_init,phys_pars = phys_pars ))
-names(solution_MIEP) <- c("Time", "Blood", "Heart", "Lungs", "Liver",  "Spleen",
-                         "Kidneys","Git", "Bone",  "Feces", "Urine")
-
-# Solve the ODE system using the exponential matrix method  
-solution_GAFP <-  as.data.frame(solve_exp_matrix(x = A_GAFP, time = sample_time, 
-                                                 y_init = y_init,phys_pars = phys_pars ))
-names(solution_GAFP) <- c("Time", "Blood", "Heart", "Lungs", "Liver",  "Spleen",
-                         "Kidneys","Git", "Bone",  "Feces", "Urine")
-
-# Solve the ODE system using the exponential matrix method  
-solution_GATP <-  as.data.frame(solve_exp_matrix(x = A_GATP, time = sample_time, 
-                                                 y_init = y_init,phys_pars = phys_pars ))
-names(solution_GATP) <- c("Time", "Blood", "Heart", "Lungs", "Liver",  "Spleen",
-                         "Kidneys","Git", "Bone",  "Feces", "Urine")
-
-# Solve the ODE system using the exponential matrix method  
-solution_GACP <-  as.data.frame(solve_exp_matrix(x = A_GACP, time = sample_time, 
-                                                 y_init = y_init,phys_pars = phys_pars ))
-names(solution_GACP) <- c("Time", "Blood", "Heart", "Lungs", "Liver",  "Spleen",
-                         "Kidneys","Git", "Bone",  "Feces", "Urine")
-
-
+                          "Kidneys","Git", "Bone",  "Feces", "Urine")
 
 
 # Create a single data frame to hold the observation data 
@@ -1004,10 +761,7 @@ metric.print <- function(x){
 }
 
 metric.print(solution_MAEP)
-metric.print(solution_MIEP)
-metric.print(solution_GAFP)
-metric.print(solution_GATP)
-metric.print(solution_GACP)
+
 
 #####################
 #    PLOTS  ########
@@ -1016,22 +770,15 @@ metric.print(solution_GACP)
 library(ggplot2)
 
 # Defining the linetype and colour of each curve
-ltp <- c("MAEP" = "twodash", "GAFP" = "solid", "GATP" = "dotted","GACP" = "dashed")
-cls <-  c("MAEP" = "#56B4E9",  "GAFP" ="#000000", "GATP" = "#009E73", "GACP" ="#CC79A7",
-          "Observations" = "#D55E00")
+ltp <- c( "Predictions" = "solid" )
+cls <-  c("FPG" ="#000000", "Observations" = "#D55E00")
 
 
 create.plots <- function(compartment){  
   excreta <- compartment %in% c("Feces", "Urine")
   ggplot(data = solution_MAEP)+
     geom_line( aes_string(x= "Time", y= rlang::expr(!!compartment), 
-                          color = '"MAEP"',linetype = '"MAEP"'),  size=1.5,alpha = 0.7) +
-    geom_line(data=solution_GAFP, aes_string(x= "Time", y= rlang::expr(!!compartment),
-                                             color = '"GAFP"',linetype ='"GAFP"'), size=1.5,alpha = 0.9) +
-    geom_line(data=solution_GATP, aes_string(x= "Time", y= rlang::expr(!!compartment),
-                                            color =  '"GATP"',linetype =  '"GATP"'), size=1.5,alpha = 0.7) +
-    geom_line(data=solution_GACP, aes_string(x= "Time", y= rlang::expr(!!compartment), 
-                                             color = '"GACP"',linetype ='"GACP"'), size=1.5,alpha = 0.7) +
+                          color = '"Predictions"',linetype = '"Predictions"'),  size=1.5,alpha = 0.7) +
     geom_point(data=observations, aes_string(x="Time", y= rlang::expr(!!compartment), 
                                              color='"Observations"'), size=4)+
     labs(title = rlang::expr(!!compartment), 
@@ -1039,8 +786,12 @@ create.plots <- function(compartment){
          x = "Time (hours)")+
     theme(plot.title = element_text(hjust = 0.5))+
     {if(compartment %in% c("Blood", "Heart", "Lungs", "Kidneys", "Git" ))scale_y_continuous(trans='log10')}+
-    scale_color_manual("Models", values=cls)+
-    scale_linetype_manual("", values=ltp)
+    scale_color_manual("", values=cls)+
+    scale_linetype_manual("Models", values=ltp) +
+    theme(legend.key.size = unit(1.5, 'cm'),  
+          legend.title = element_text(size=14),
+          legend.text = element_text(size=14),
+          axis.text = element_text(size = 14))
   
 }
 plots <- lapply(names(observations)[2:length(observations)],create.plots)
