@@ -35,7 +35,7 @@ create.params <- function(comp_names, w){
   Regional_flow_fractions <- fractions[,2]/100 # % of total cardiac output
   #Capillary volume fractions (fractions of tissue volume)
   Capillary_fractions <- fractions[,3] # of tissue volume
-
+  
   W_tis <- rep(0,length(comp_names))
   V_tis <- rep(0,length(comp_names))
   V_cap <- rep(0,length(comp_names))
@@ -54,20 +54,20 @@ create.params <- function(comp_names, w){
   soft_tissues <- mean(228.57, 253.85, 214.29, 225.93, 231.04)
   
   ### Calculation of tissue weights  
-    W_tis[2] <- heart_expw
-    W_tis[3] <- kidneys_expw
-    W_tis[5] <- spleen_expw
-    W_tis[6] <- lungs_expw
-    W_tis[7] <- liver_expw
-    W_tis[9] <- skeleton_expw
-    W_tis[13] <- Tissue_fractions[13]*w
+  W_tis[2] <- heart_expw
+  W_tis[3] <- kidneys_expw
+  W_tis[5] <- spleen_expw
+  W_tis[6] <- lungs_expw
+  W_tis[7] <- liver_expw
+  W_tis[9] <- skeleton_expw
+  W_tis[13] <- Tissue_fractions[13]*w
   
   for (i in 1:length(comp_names)) {
     control <- comp_names[i]
     
     Regional_flow_fractions[i] <- ifelse(is.na(control), NA, Regional_flow_fractions[i])
     Capillary_fractions[i] <- ifelse(is.na(control), NA, Capillary_fractions[i])
-
+    
     
     ###Calculation of tissue volumes
     
@@ -93,7 +93,7 @@ create.params <- function(comp_names, w){
   V_tis[1] <- W_tis[1]/d_adipose     
   Q[1] <- Q_total - sum(Q[2:length(Q)],na.rm = TRUE) + Q[6]
   V_cap[1] <- V_tis[1]*Capillary_fractions[1] #Total_Blood - Vven - Vart - sum(V_cap[2:length(V_cap)], na.rm = TRUE)
-
+  
   parameters <- matrix(c(W_tis[],V_tis[],V_cap[],Q[]), ncol = 4)
   colnames(parameters) <- c("W_tis", "V_tis", "V_cap", "Q")
   rownames(parameters) <- all_comps
@@ -287,31 +287,42 @@ obj.func <- function(par,...){
   dots <- list(...)
   with(as.list(dots),{
     
-  params <- c(phys_pars, position, exp(par))
-  solution <- data.frame(ode(times = sample_time,  func = ode.func,
-                             y = inits, parms = params, 
-                             method="lsodes",rtol = 1e-3, atol = 1e-3))
-  
-  concentrations <- data.frame(solution$time, solution$C_li, solution$C_spl, solution$C_ki,
-                                solution$C_lu, solution$C_ht, solution$Blood,
-                                solution$C_bone,  solution$C_soft)
-  
-  concentrations <- concentrations[solution$time %in%time_points, 2:dim(concentrations)[2]]
-  excr_solution <-  data.frame(solution$time, solution$Feces)
-  excr_solution <- excr_solution[solution$time %in% excretion_time_points,2]
-  observed <- list()
-  predicted <- list()
-  
-  for (i in 1:length(concentrations)) {
-    observed[[i]] <- df[,i]
-    predicted[[i]] <- concentrations[,i]
-  }
-  observed[[i+1]] <- excretion #feces
-  predicted[[i+1]] <- excr_solution #feces
-
-  discrepancy <- fitness.metric(observed, predicted)
-  
-  return(discrepancy)
+    params <- c(phys_pars, position, exp(par))
+    solution <- data.frame(ode(times = sample_time,  func = ode.func,
+                               y = inits, parms = params, 
+                               method="lsodes",rtol = 1e-3, atol = 1e-3))
+    
+    concentrations <- data.frame(solution$time, solution$C_li, solution$C_spl, solution$C_ki,
+                                 solution$C_lu, solution$C_ht, solution$Blood,
+                                 solution$C_bone,  solution$C_soft)
+    
+    concentrations <- concentrations[solution$time %in%time_points, 2:dim(concentrations)[2]]
+    excr_solution <-  data.frame(solution$time, solution$Feces)
+    excr_solution <- excr_solution[solution$time %in% excretion_time_points,2]
+    observed <- list()
+    predicted <- list()
+    
+    for (i in 1:length(concentrations)) {
+      observed[[i]] <- df[,i]
+      predicted[[i]] <- concentrations[,i]
+    }
+    observed[[i+1]] <- excretion #feces
+    predicted[[i+1]] <- excr_solution #feces
+    
+    if(w_version == "r.squared"){
+      discrepancy <- - r.squared(observed, predicted)
+    }else if(w_version == "PBPK_index"){
+      discrepancy <- pbpk.index(observed, predicted)
+    }else if(w_version == "proposed_metric"){
+      discrepancy <- fitness.metric(observed, predicted)
+    }else if(w_version == "two.fold"){
+      discrepancy <- - two.fold(observed, predicted)
+    }else if(w_version == "AAFE"){
+      discrepancy <- AAFE(observed, predicted)
+    }else if(w_version == "rmsd"){
+      discrepancy <- rmsd(observed, predicted)
+    }    
+    return(discrepancy)
   })
 }
 
@@ -381,144 +392,6 @@ fitness.metric <- function(observed, predicted, comp.names =NULL){
   return(Ic)
   #return(list(Total_index = Ic, Compartment_index= I))
 }
-
-decode_ga_real <- function(real_num){ 
-  # Partition coefficient grouping
-  P1 <- floor(real_num[1])
-  P2 <- floor(real_num[2])
-  P3 <- floor(real_num[3])
-  P4 <- floor(real_num[4])
-  P5 <- floor(real_num[5])
-  P6 <- floor(real_num[6])
-  P7 <- floor(real_num[7])
-  P8 <- floor(real_num[8])
-  
-  
-  # Permeability coefficient grouping
-  X1 <- floor(real_num[9])
-  X2 <- floor(real_num[10])
-  X3 <- floor(real_num[11])
-  X4 <- floor(real_num[12])
-  X5 <- floor(real_num[13])
-  X6 <- floor(real_num[14])
-  X7 <- floor(real_num[15])
-  X8 <- floor(real_num[16])
-  
-  out <- structure(c(P1,P2,P3,P4,P5,P6,P7,P8, X1,X2,X3,X4,X5,
-                     X6,X7,X8), names = c("P1","P2","P3","P4",
-                                          "P5","P6", "P7", "P8", "X1",
-                                          "X2", "X3", "X4", "X5", "X6", "X7", "X8"))
-  return(out)
-}
-
-#=============================
-#8. Create position  
-#=============================  
-# Function for creating the position from which to draw each param from the fitted params vector
-create.position <- function(grouping){
-  #---------------------------
-  # Define fitting parameters 
-  #---------------------------
-  N_p <-8 #   Number of partition coefficients
-  N_x <- 8#   Number of permeability coefficients  
-  # Define size of P and X groups
-  P_groups <- length(unique(grouping[1:N_p]))  # sample size
-  X_groups <- length(unique(grouping[(N_p+1):(N_p+N_x)]))  # sample size
-  # set.seed(0)
-  # Initilise parameter values
-  fitted <- rep(NA, P_groups+X_groups+2)
-  # Initialise naming vectors
-  pnames <- rep(NA, P_groups)
-  xnames <- rep(NA, X_groups)
-  
-  #Define names for P and X groups
-  for (i in 1:P_groups){
-    pnames[i] <- paste0("P", as.character(unique(grouping[1:N_p])[i]))
-  }
-  for (j in 1:X_groups){
-    xnames[j] <- paste0("X", as.character(unique(grouping[(N_p+1):(N_p+N_x)])[j]))
-  }
-  # Define the total parameter vector names
-  names(fitted) <- c(pnames, xnames,"CLE_f",  "CLE_h")
-  # Variable for keeping which value in the fitted params vector corresponds to each coefficient
-  position = rep(NA, length(grouping))
-  for (i in 1:(length(position))){
-    if(i<=8){
-      position[i] <- which(names(fitted) == paste0("P", as.character(grouping[i])))
-    }else{
-      position[i] <- which(names(fitted) == paste0("X", as.character(grouping[i])))
-    }
-  }
-  fitted[] <- c(log(exp(runif(P_groups, 3,6))),log(exp(runif(X_groups+2, -3,1))))
-  
-  return(list("position"=position,"fitted"=fitted))
-}
-
-#===============
-# Load data  
-#===============
-
-dose <- 18.15 # ug # Since results are in %ID we used a random dose that is within the dose range given to the rats
-mass <- 263 #g, female Wistar Kyoto rats
-
-# Load raw data from paper Kreyling et al.2017, which are given in %ID/g tissue
-df_percent <- openxlsx::read.xlsx("Kreyling-IV-data.xlsx", sheet = 6, colNames = T, rowNames = T) # TiO2 NPs %ID/g of tissue  (Table 1)
-excretion_percent <- openxlsx::read.xlsx("Kreyling-IV-data.xlsx", sheet = 3, colNames = T, rowNames = F) # accumulated excretory rate, expressed as %ID
-# Drop the first time points because the graph is supposed to be cumulative dose but the cumulative feces in day 1 are less that the first time points 
-excretion_time <- round(excretion_percent[3:5,1])*24 # hours
-# Convert doses from %ID to masses
-df_all <- (df_percent/100) * dose # Concentrations in (ug of NPs)/(g of tissue)
-# Drop unused compartments
-df <- df_all[, !(names(df_all) %in% c("Uterus", "Brain", "Carcass"))]
-excretion <- (excretion_percent[3:5,2]/100) * dose
-
-
-
-compartments <- list( "RoB"="RoB","Heart"="Heart", "Kidneys"="Kidneys", "Brain"= NA, "Spleen"="Spleen",
-                      "Lungs"="Lungs", "Liver"="Liver", "Uterus"= NA, "Bone"="Bone", "Adipose"=NA, "Skin"=NA, "Muscles"=NA, "GIT"="GIT") #used as input in function, compartments that are used in pbpk
-
-
-# Nelder-Mead from dfoptim package
-time_points <- c(1,4,24, 7*24, 28*24) # hours
-excretion_time_points <- excretion_time
-sample_time <- seq(0, 28*24, 1)
-# Initialise vector of physiological parameters
-phys_pars <- create.params(compartments,mass)
-inits <- create.inits(phys_pars, dose)
-
-
-grouping_MAEP <- c(1:8,1:8)  
-set.seed(1234)
-position_MAEP <- create.position(grouping_MAEP)$position
-
-set.seed(123)
-fitted_MAEP <-  create.position(position_MAEP)$fitted
-MAX = 500
-nm_optimizer_MAEP<- dfoptim::nmk(par = fitted_MAEP, fn = obj.func,
-                                 control = list(maxfeval=MAX, trace=T), inits = inits,
-                                 time_points = time_points,
-                                 excretion_time_points =  excretion_time_points,
-                                 sample_time = sample_time,
-                                 phys_pars = phys_pars, 
-                                 position = position_MAEP)
-params_MAEP<- exp(nm_optimizer_MAEP$par)
-
-
-params <- c(phys_pars, position_MAEP, params_MAEP)
-solution <- data.frame(ode(times = sample_time,  func = ode.func,
-                           y = inits, parms = params, 
-                           method="bdf",rtol = 1e-5, atol = 1e-5))
-
-solution_MAEP <- data.frame(solution$time, solution$C_li, solution$C_spl, solution$C_ki,
-                            solution$C_lu, solution$C_ht, solution$Blood,
-                            solution$C_bone,  solution$C_soft, solution$Feces)
-names(solution_MAEP) <- c("Time",  "Liver",  "Spleen","Kidneys","Lungs","Heart","Blood","Bone", "RoB", "Feces")
-
-
-# Create a single data frame to hold the observation data 
-observations <- data.frame( Time =c( 1,  4,  24, 168, 672), df, c(NA,NA,excretion))
-
-names(observations) <- c("Time",  "Liver",  "Spleen","Kidneys","Lungs","Heart","Blood","Bone", "RoB", "Feces")
 
 
 #####################
@@ -639,65 +512,282 @@ pbpk.index <- function(observed, predicted, comp.names =NULL){
 }
 
 
-
-metric.print <- function(x){
-  solution <- x
+decode_ga_real <- function(real_num){ 
+  # Partition coefficient grouping
+  P1 <- floor(real_num[1])
+  P2 <- floor(real_num[2])
+  P3 <- floor(real_num[3])
+  P4 <- floor(real_num[4])
+  P5 <- floor(real_num[5])
+  P6 <- floor(real_num[6])
+  P7 <- floor(real_num[7])
+  P8 <- floor(real_num[8])
   
-  concentrations <- solution[solution$Time %in% time_points, 2:(dim(solution)[2]-2)]
-  excr_solution <-  data.frame(solution$Time, solution$Feces)
-  excr_solution <- excr_solution[solution$Time %in% excretion_time_points, 2]
   
-  observed <- list()
-  predicted <- list()
+  # Permeability coefficient grouping
+  X1 <- floor(real_num[9])
+  X2 <- floor(real_num[10])
+  X3 <- floor(real_num[11])
+  X4 <- floor(real_num[12])
+  X5 <- floor(real_num[13])
+  X6 <- floor(real_num[14])
+  X7 <- floor(real_num[15])
+  X8 <- floor(real_num[16])
   
-  for (i in 1:(length(concentrations))) {
-    observed[[i]] <- df[,i]
-    predicted[[i]] <- concentrations[,i]
-  }
-  observed[[i+1]] <- excretion #feces
-  predicted[[i+1]] <- excr_solution #feces
-  
-  print(paste0("PBPK index is: ", pbpk.index(observed, predicted)))
-  print(paste0("PBPK index is: ", r.squared(observed, predicted)))
-  print(paste0("PBPK index is: ", AAFE(observed, predicted)))
-  print(paste0("PBPK index is: ",rmsd(observed, predicted)))
-  print(paste0("PBPK index is: ", two.fold(observed, predicted)))
+  out <- structure(c(P1,P2,P3,P4,P5,P6,P7,P8, X1,X2,X3,X4,X5,
+                     X6,X7,X8), names = c("P1","P2","P3","P4",
+                                          "P5","P6", "P7", "P8", "X1",
+                                          "X2", "X3", "X4", "X5", "X6", "X7", "X8"))
+  return(out)
 }
 
-metric.print(solution_MAEP)
+#=============================
+#8. Create position  
+#=============================  
+# Function for creating the position from which to draw each param from the fitted params vector
+create.position <- function(grouping){
+  #---------------------------
+  # Define fitting parameters 
+  #---------------------------
+  N_p <-8 #   Number of partition coefficients
+  N_x <- 8#   Number of permeability coefficients  
+  # Define size of P and X groups
+  P_groups <- length(unique(grouping[1:N_p]))  # sample size
+  X_groups <- length(unique(grouping[(N_p+1):(N_p+N_x)]))  # sample size
+  # set.seed(0)
+  # Initilise parameter values
+  fitted <- rep(NA, P_groups+X_groups+2)
+  # Initialise naming vectors
+  pnames <- rep(NA, P_groups)
+  xnames <- rep(NA, X_groups)
+  
+  #Define names for P and X groups
+  for (i in 1:P_groups){
+    pnames[i] <- paste0("P", as.character(unique(grouping[1:N_p])[i]))
+  }
+  for (j in 1:X_groups){
+    xnames[j] <- paste0("X", as.character(unique(grouping[(N_p+1):(N_p+N_x)])[j]))
+  }
+  # Define the total parameter vector names
+  names(fitted) <- c(pnames, xnames,"CLE_f",  "CLE_h")
+  # Variable for keeping which value in the fitted params vector corresponds to each coefficient
+  position = rep(NA, length(grouping))
+  for (i in 1:(length(position))){
+    if(i<=8){
+      position[i] <- which(names(fitted) == paste0("P", as.character(grouping[i])))
+    }else{
+      position[i] <- which(names(fitted) == paste0("X", as.character(grouping[i])))
+    }
+  }
+  fitted[] <- c(log(exp(runif(P_groups, 3,6))),log(exp(runif(X_groups+2, -3,1))))
+  
+  return(list("position"=position,"fitted"=fitted))
+}
+
+#===============
+# Load data  
+#===============
+
+dose <- 18.15 # ug # Since results are in %ID we used a random dose that is within the dose range given to the rats
+mass <- 263 #g, female Wistar Kyoto rats
+
+# Load raw data from paper Kreyling et al.2017, which are given in %ID/g tissue
+df_percent <- openxlsx::read.xlsx("Kreyling-IV-data.xlsx", sheet = 6, colNames = T, rowNames = T) # TiO2 NPs %ID/g of tissue  (Table 1)
+excretion_percent <- openxlsx::read.xlsx("Kreyling-IV-data.xlsx", sheet = 3, colNames = T, rowNames = F) # accumulated excretory rate, expressed as %ID
+# Drop the first time points because the graph is supposed to be cumulative dose but the cumulative feces in day 1 are less that the first time points 
+excretion_time <- round(excretion_percent[3:5,1])*24 # hours
+# Convert doses from %ID to masses
+df_all <- (df_percent/100) * dose # Concentrations in (ug of NPs)/(g of tissue)
+# Drop unused compartments
+df <- df_all[, !(names(df_all) %in% c("Uterus", "Brain", "Carcass"))]
+excretion <- (excretion_percent[3:5,2]/100) * dose
 
 
-#####################
-#    PLOTS  ########
-######################
+
+compartments <- list( "RoB"="RoB","Heart"="Heart", "Kidneys"="Kidneys", "Brain"= NA, "Spleen"="Spleen",
+                      "Lungs"="Lungs", "Liver"="Liver", "Uterus"= NA, "Bone"="Bone", "Adipose"=NA, "Skin"=NA, "Muscles"=NA, "GIT"="GIT") #used as input in function, compartments that are used in pbpk
+
+
+# Nelder-Mead from dfoptim package
+time_points <- c(1,4,24, 7*24, 28*24) # hours
+excretion_time_points <- excretion_time
+sample_time <- seq(0, 28*24, 1)
+# Initialise vector of physiological parameters
+phys_pars <- create.params(compartments,mass)
+inits <- create.inits(phys_pars, dose)
+
+
+grouping <- c(1:8,1:8)  
+position <- create.position(grouping)$position
+
+set.seed(123)
+fitted <-  create.position(position)$fitted
+
+
+
+MAX <- 500
+w_version <- "r.squared"  
+# Run the Nelder Mead algorithmm to estimate the parameter values
+nm_optimizer_max_r<- dfoptim::nmk(par = fitted, fn = obj.func,
+                                  control = list(maxfeval=MAX), inits = inits,
+                                  time_points = time_points,
+                                  excretion_time_points =  excretion_time_points,
+                                  sample_time = sample_time,
+                                  phys_pars = phys_pars, 
+                                  position = position )
+max_params_r<- exp(nm_optimizer_max_r$par)
+
+w_version <- "PBPK_index"  
+# Run the Nelder Mead algorithmm to estimate the parameter values
+nm_optimizer_max_pbpk <- dfoptim::nmk(par = fitted, fn = obj.func,
+                                      control = list(maxfeval=MAX, trace=T), inits = inits,
+                                      time_points = time_points,
+                                      excretion_time_points =  excretion_time_points,
+                                      sample_time = sample_time,
+                                      phys_pars = phys_pars, 
+                                      position = position )
+max_params_pbpk <- exp(nm_optimizer_max_pbpk$par)
+
+w_version <- "proposed_metric"  
+# Run the Nelder Mead algorithmm to estimate the parameter values
+nm_optimizer_max_new<- dfoptim::nmk(par = fitted, fn = obj.func,
+                                    control = list(maxfeval=MAX, trace=T), inits = inits,
+                                    time_points = time_points,
+                                    excretion_time_points =  excretion_time_points,
+                                    sample_time = sample_time,
+                                    phys_pars = phys_pars, 
+                                    position = position )
+max_params_new <- exp(nm_optimizer_max_new$par)
+
+
+w_version <- "AAFE"  
+# Run the Nelder Mead algorithmm to estimate the parameter values
+nm_optimizer_max_aafe<- dfoptim::nmk(par = fitted, fn = obj.func,
+                                     control = list(maxfeval=MAX, trace=T), inits = inits,
+                                     time_points = time_points,
+                                     excretion_time_points =  excretion_time_points,
+                                     sample_time = sample_time,
+                                     phys_pars = phys_pars, 
+                                     position = position )
+max_params_aafe <- exp(nm_optimizer_max_aafe$par)
+
+w_version <- "rmsd"  
+# Run the Nelder Mead algorithmm to estimate the parameter values
+nm_optimizer_max_rmsd<- dfoptim::nmk(par = fitted, fn = obj.func,
+                                     control = list(maxfeval=MAX, trace=T), inits = inits,
+                                     time_points = time_points,
+                                     excretion_time_points =  excretion_time_points,
+                                     sample_time = sample_time,
+                                     phys_pars = phys_pars, 
+                                     position = position )
+max_params_rmsd <- exp(nm_optimizer_max_rmsd$par)
+
+
+
+
+# Prepare results with r-squared metric
+params_r <- c(phys_pars, position, max_params_r)
+solution_r_pre <- data.frame(ode(times = sample_time,  func = ode.func,
+                           y = inits, parms = params_r, 
+                           method="bdf",rtol = 1e-5, atol = 1e-5))
+
+solution_r <- data.frame(solution_r_pre$time, solution_r_pre$C_li, solution_r_pre$C_spl, solution_r_pre$C_ki,
+                            solution_r_pre$C_lu, solution_r_pre$C_ht, solution_r_pre$Blood,
+                            solution_r_pre$C_bone,  solution_r_pre$C_soft, solution_r_pre$Feces)
+names(solution_r) <- c("Time",  "Liver",  "Spleen","Kidneys","Lungs","Heart","Blood","Bone", "RoB", "Feces")
+
+
+# Prepare results with PBPK index metric
+params_pbpk <- c(phys_pars, position, max_params_pbpk)
+solution_pbpk_pre <- data.frame(ode(times = sample_time,  func = ode.func,
+                                 y = inits, parms = params_pbpk, 
+                                 method="bdf",rtol = 1e-5, atol = 1e-5))
+
+solution_pbpk <- data.frame(solution_pbpk_pre$time, solution_pbpk_pre$C_li, solution_pbpk_pre$C_spl, solution_pbpk_pre$C_ki,
+                            solution_pbpk_pre$C_lu, solution_pbpk_pre$C_ht, solution_pbpk_pre$Blood,
+                            solution_pbpk_pre$C_bone,  solution_pbpk_pre$C_soft, solution_pbpk_pre$Feces)
+names(solution_pbpk) <- c("Time",  "Liver",  "Spleen","Kidneys","Lungs","Heart","Blood","Bone", "RoB", "Feces")
+
+
+# Prepare results with PBKOF metric
+params_new <- c(phys_pars, position, max_params_new)
+solution_new_pre <- data.frame(ode(times = sample_time,  func = ode.func,
+                                 y = inits, parms = params_new, 
+                                 method="bdf",rtol = 1e-5, atol = 1e-5))
+
+solution_new <- data.frame(solution_new_pre$time, solution_new_pre$C_li, solution_new_pre$C_spl, solution_new_pre$C_ki,
+                            solution_new_pre$C_lu, solution_new_pre$C_ht, solution_new_pre$Blood,
+                            solution_new_pre$C_bone,  solution_new_pre$C_soft, solution_new_pre$Feces)
+names(solution_new) <- c("Time",  "Liver",  "Spleen","Kidneys","Lungs","Heart","Blood","Bone", "RoB", "Feces")
+
+
+# Prepare results with AAFE metric
+params_aafe<- c(phys_pars, position, max_params_aafe)
+solution_aafe_pre <- data.frame(ode(times = sample_time,  func = ode.func,
+                                 y = inits, parms = params_aafe, 
+                                 method="bdf",rtol = 1e-5, atol = 1e-5))
+
+solution_aafe <- data.frame(solution_aafe_pre$time, solution_aafe_pre$C_li, solution_aafe_pre$C_spl, solution_aafe_pre$C_ki,
+                            solution_aafe_pre$C_lu, solution_aafe_pre$C_ht, solution_aafe_pre$Blood,
+                            solution_aafe_pre$C_bone,  solution_aafe_pre$C_soft, solution_aafe_pre$Feces)
+names(solution_aafe) <- c("Time",  "Liver",  "Spleen","Kidneys","Lungs","Heart","Blood","Bone", "RoB", "Feces")
+
+
+# Prepare results with RMSD metric
+params_rmsd <- c(phys_pars, position, max_params_rmsd)
+solution_rmsd_pre <- data.frame(ode(times = sample_time,  func = ode.func,
+                                 y = inits, parms = params_rmsd, 
+                                 method="bdf",rtol = 1e-5, atol = 1e-5))
+
+solution_rmsd <- data.frame(solution_rmsd_pre$time, solution_rmsd_pre$C_li, solution_rmsd_pre$C_spl, solution_rmsd_pre$C_ki,
+                            solution_rmsd_pre$C_lu, solution_rmsd_pre$C_ht, solution_rmsd_pre$Blood,
+                            solution_rmsd_pre$C_bone,  solution_rmsd_pre$C_soft, solution_rmsd_pre$Feces)
+names(solution_rmsd) <- c("Time",  "Liver",  "Spleen","Kidneys","Lungs","Heart","Blood","Bone", "RoB", "Feces")
+
+
+# Create a single data frame to hold the observation data 
+observations <- data.frame( Time =c( 1,  4,  24, 168, 672), df, c(NA,NA,excretion))
+
+names(observations) <- c("Time",  "Liver",  "Spleen","Kidneys","Lungs","Heart","Blood","Bone", "RoB", "Feces")
+
 
 library(ggplot2)
 
 # Defining the linetype and colour of each curve
-ltp <- c( "Predictions" = "solid" )
-cls <-  c("Predictions" ="#000000", "Observations" = "#D55E00")
+ltp <- c("R-squared" = "twodash","RMSD" ="dotted", "PBKOF" = "solid", "AAFE" = "longdash","PBPK index" = "dashed")
+cls <-  c("R-squared" = "#56B4E9", "RMSD" = "#E69F00", "PBKOF" ="#000000", "AAFE" = "#009E73", "PBPK index" ="#CC79A7",
+          "Observations" = "#D55E00")
 
 
 create.plots <- function(compartment){  
-  excreta <- compartment %in% c("Feces")
-  ggplot(data = solution_MAEP)+
+  excreta <- compartment %in% c("Feces", "Urine")
+  ggplot(data = solution_r)+
     geom_line( aes_string(x= "Time", y= rlang::expr(!!compartment), 
-                          color = '"Predictions"',linetype = '"Predictions"'),  size=1.5,alpha = 0.7) +
+                          color = '"R-squared"',linetype = '"R-squared"'),  size=1.5,alpha = 0.7) +
+    geom_line(data=solution_pbpk, aes_string(x= "Time", y= rlang::expr(!!compartment),
+                                             color = '"PBPK index"',linetype ='"PBPK index"'), size=1.5,alpha = 0.9) +
+    geom_line(data=solution_new, aes_string(x= "Time", y= rlang::expr(!!compartment),
+                                            color =  '"PBKOF"',linetype =  '"PBKOF"'), size=1.5,alpha = 0.7) +
+    geom_line(data=solution_aafe, aes_string(x= "Time", y= rlang::expr(!!compartment), 
+                                             color = '"AAFE"',linetype ='"AAFE"'), size=1.5,alpha = 0.7) +
+    geom_line(data=solution_rmsd, aes_string(x= "Time", y= rlang::expr(!!compartment), 
+                                             color = '"RMSD"',linetype = '"RMSD"'), size=1.5,alpha = 0.7) +
     geom_point(data=observations, aes_string(x="Time", y= rlang::expr(!!compartment), 
                                              color='"Observations"'), size=4)+
     labs(title = rlang::expr(!!compartment), 
-         y = ifelse(excreta,"TiO2 (ug)","TiO2 (ug/g tissue)" ),
+         y = ifelse(excreta,"TiO2 (mg)","TiO2 (mg/g tissue)" ),
          x = "Time (hours)")+
     theme(plot.title = element_text(hjust = 0.5))+
-    {if(compartment %in% c("Blood" ))scale_y_continuous(trans='log10')}+
+    {if(compartment %in% c("Blood", "Kideys", "Heart", "Bone" ))scale_y_continuous(trans='log10')}+
     scale_color_manual("", values=cls)+
-    scale_linetype_manual("Models", values=ltp) +
+    scale_linetype_manual("Metrics", values=ltp) +
     theme(legend.key.size = unit(1.5, 'cm'),  
           legend.title = element_text(size=14),
           legend.text = element_text(size=14),
           axis.text = element_text(size = 14))
   
 }
+
 plots <- lapply(names(observations)[2:length(observations)],create.plots)
 p1 <-  plots[[1]]
 p2 <-  plots[[2]]
@@ -714,4 +804,5 @@ p9 <-  plots[[9]]
 
 ggpubr::ggarrange(p1, p2, p3, p4,p5,p6,p7,p8, p9, ncol=3, nrow=4, 
                   common.legend = TRUE, legend="right")
+
 
