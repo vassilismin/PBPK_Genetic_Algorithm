@@ -778,7 +778,7 @@ create.plots <- function(compartment){
          y = ifelse(excreta,"TiO2 (mg)","TiO2 (mg/g tissue)" ),
          x = "Time (hours)")+
     theme(plot.title = element_text(hjust = 0.5))+
-    {if(compartment %in% c("Blood", "Kideys", "Heart", "Bone" ))scale_y_continuous(trans='log10')}+
+    {if(compartment %in% c("Blood", "Kidneys", "Heart", "Bone", "Lungs" ))scale_y_continuous(trans='log10')}+
     scale_color_manual("", values=cls)+
     scale_linetype_manual("Metrics", values=ltp) +
     theme(legend.key.size = unit(1.5, 'cm'),  
