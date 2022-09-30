@@ -342,7 +342,14 @@ obj.func2 <- function(par,phys_pars, position,  sample_time, inits, time_points,
     observed[[i+1]] <- excretion #feces
     predicted[[i+1]] <- excr_solution #feces
     
-    discrepancy <- fitness.metric(observed, predicted)
+    #Here we implement a barrier function, thus a solver that can handle 
+    # discontinious functions should be used
+    threshold <- 3
+    if(any(concentrations[,1]>threshold)){
+      discrepancy <- Inf
+    }else{
+      discrepancy <- fitness.metric(observed, predicted)
+    }
     
     return(discrepancy)
   
@@ -580,7 +587,7 @@ local_opts <- list( "algorithm" = "NLOPT_LN_COBYLA",
                     "ftol_abs" = 0.0,
                     "xtol_abs" = 0.0 )
 
-opts <- list( "algorithm" = "NLOPT_GN_DIRECT_L_RAND_NOSCAL",
+opts <- list( "algorithm" = "NLOPT_LN_SBPLX",
               "xtol_rel" = 0.0,
               "ftol_rel" = 0.0,
               "ftol_abs" = 0.0,
@@ -594,7 +601,7 @@ start.nl <- Sys.time()
 res2 <- nloptr::nloptr( x0= fitted_MAEP,
                         eval_f = obj.func2,
                         lb	= rep(-20, length(fitted_MAEP)),
-                        ub = rep(20, length(fitted_MAEP)),
+                        ub = rep(15, length(fitted_MAEP)),
                        # eval_g_ineq = eval_g_ineq,
                         opts = opts,
                        phys_pars = phys_pars, position = position_MAEP, sample_time = sample_time,
