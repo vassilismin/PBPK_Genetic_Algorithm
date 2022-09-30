@@ -555,6 +555,7 @@ start.nm <- Sys.time()
 nm_optimizer_MAEP<- dfoptim::nmk(par = fitted_MAEP, fn = obj.func,
                                 inits = inits,
                                  time_points = time_points,
+                                control = list(maxfeval=1000),
                                  excretion_time_points =  excretion_time_points,
                                  sample_time = sample_time,
                                  phys_pars = phys_pars, 
@@ -573,10 +574,20 @@ stop.nm <- Sys.time()
 #===================================
 # Problem without constraints
 #==================================
-opts <- list( "algorithm" = "NLOPT_GN_DIRECT",
-              "xtol_rel"  = 1.0e-4,
-              "ranseed" = 123,
+local_opts <- list( "algorithm" = "NLOPT_LN_COBYLA",
+                    "xtol_rel" = 1e-04,
+                    "ftol_rel" = 0.0,
+                    "ftol_abs" = 0.0,
+                    "xtol_abs" = 0.0 )
+
+opts <- list( "algorithm" = "NLOPT_GN_DIRECT_L_RAND_NOSCAL",
+              "xtol_rel" = 0.0,
+              "ftol_rel" = 0.0,
+              "ftol_abs" = 0.0,
+              "xtol_abs" = 0.0 ,
+              "ranseed" = 153,
               "maxeval" = 1000)#,
+              #"local_opts" = local_opts )#,
            # "tol_constraints_ineq" = rep(1e-01,1))
 
 start.nl <- Sys.time()
@@ -592,9 +603,6 @@ res2 <- nloptr::nloptr( x0= fitted_MAEP,
                         excretion_time_points =  excretion_time_points)
 stop.nl <- Sys.time()
 
-print("Time for NM was: ")
-print(stop.nm - start.nm)
-print(paste0("with OF value: ", nm_optimizer_MAEP$value))
 
 print("Time for NL was: ")
 print(stop.nl - start.nl)
