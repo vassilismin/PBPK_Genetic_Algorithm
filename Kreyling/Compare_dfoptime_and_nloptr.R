@@ -592,12 +592,15 @@ opts <- list( "algorithm" = "NLOPT_LN_SBPLX",
               "ftol_rel" = 0.0,
               "ftol_abs" = 0.0,
               "xtol_abs" = 0.0 ,
-              "ranseed" = 153,
               "maxeval" = 1000)#,
+            #  "print_level" = 1)#,
               #"local_opts" = local_opts )#,
            # "tol_constraints_ineq" = rep(1e-01,1))
 
+
+
 start.nl <- Sys.time()
+
 res2 <- nloptr::nloptr( x0= fitted_MAEP,
                         eval_f = obj.func2,
                         lb	= rep(-20, length(fitted_MAEP)),
@@ -608,6 +611,7 @@ res2 <- nloptr::nloptr( x0= fitted_MAEP,
                         inits = inits,
                         time_points = time_points,
                         excretion_time_points =  excretion_time_points)
+
 stop.nl <- Sys.time()
 
 
