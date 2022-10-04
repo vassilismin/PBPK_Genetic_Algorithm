@@ -290,8 +290,8 @@ ga_fitness <- function(chromosome)
       
       params <- c(phys_pars, position, exp(par))
       solution <- data.frame(deSolve::ode(times = sample_time,  func = ode.func,
-                                 y = inits, parms = params, 
-                                 method="lsodes",rtol = 1e-3, atol = 1e-3))
+                                          y = inits, parms = params, 
+                                          method="lsodes",rtol = 1e-3, atol = 1e-3))
       
       concentrations <- data.frame(solution$time, solution$C_li, solution$C_spl, solution$C_ki,
                                    solution$C_lu, solution$C_ht, solution$Blood,
@@ -496,9 +496,11 @@ ga_fitness <- function(chromosome)
   X_groups <- grouping_position$X_groups
   
   nm_optimizer <- NULL
+  
+  
   nm_values <- rep(NA,5)
   for (i in 1:5){
-    fit <- c(log(exp(runif(P_groups, 3,6))),log(exp(runif(X_groups+2, -4,-1))))
+    fit <- c(log(exp(runif(P_groups, 2,6))),log(exp(runif(X_groups+2, -4,-1))))
     try(
       # Run the Nelder Mead algorithmm to estimate the parameter values
       nm_optimizer<- dfoptim::nmk(par = fit, fn = obj.func,
@@ -556,7 +558,7 @@ ga_fitness <- function(chromosome)
 setwd("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm/Kreyling")
 start <- Sys.time()
 GA_results <- GA::ga(type = "real", fitness = ga_fitness, 
-                     lower = rep(1,16), upper = rep(8.999999,16),  
+                     lower = rep(1,16), upper = rep(3.999999,16),  
                      population = "gareal_Population",
                      selection = "gareal_lsSelection",
                      crossover = "gareal_laCrossover", 
@@ -574,4 +576,4 @@ GA_results <- GA::ga(type = "real", fitness = ga_fitness,
                      seed = 8080)
 stop <- Sys.time()
 print(paste0("Time ellapsed was ", stop-start))
-save.image(file = "FPG.RData")
+save.image(file = "SPPCG.RData")
