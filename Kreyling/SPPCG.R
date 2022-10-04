@@ -290,8 +290,8 @@ ga_fitness <- function(chromosome)
       
       params <- c(phys_pars, position, exp(par))
       solution <- data.frame(deSolve::ode(times = sample_time,  func = ode.func,
-                                 y = inits, parms = params, 
-                                 method="lsodes",rtol = 1e-3, atol = 1e-3))
+                                          y = inits, parms = params, 
+                                          method="lsodes",rtol = 1e-3, atol = 1e-3))
       
       concentrations <- data.frame(solution$time, solution$C_li, solution$C_spl, solution$C_ki,
                                    solution$C_lu, solution$C_ht, solution$Blood,
@@ -383,7 +383,8 @@ ga_fitness <- function(chromosome)
     #return(list(Total_index = Ic, Compartment_index= I))
   }
   
-  decode_ga_real <- function(real_num){ 
+  decode_ga_constraint <- function(real_num)
+  { 
     # Partition coefficient grouping
     P1 <- floor(real_num[1])
     P2 <- floor(real_num[2])
@@ -395,20 +396,8 @@ ga_fitness <- function(chromosome)
     P8 <- floor(real_num[8])
     
     
-    # Permeability coefficient grouping
-    X1 <- floor(real_num[9])
-    X2 <- floor(real_num[10])
-    X3 <- floor(real_num[11])
-    X4 <- floor(real_num[12])
-    X5 <- floor(real_num[13])
-    X6 <- floor(real_num[14])
-    X7 <- floor(real_num[15])
-    X8 <- floor(real_num[16])
-    
-    out <- structure(c(P1,P2,P3,P4,P5,P6,P7,P8, X1,X2,X3,X4,X5,
-                       X6,X7,X8), names = c("P1","P2","P3","P4",
-                                            "P5","P6", "P7", "P8", "X1",
-                                            "X2", "X3", "X4", "X5", "X6", "X7", "X8"))
+    out <- structure(c(P1,P2,P3,P4,P5,P6,P7,P8), names = c("P1","P2","P3","P4",
+                                                           "P5","P6", "P7", "P8"))
     return(out)
   }
   
@@ -420,11 +409,10 @@ ga_fitness <- function(chromosome)
     #---------------------------
     # Define fitting parameters 
     #---------------------------
-    N_p <-8 #   Number of partition coefficients
-    N_x <- 8#   Number of permeability coefficients  
+    N_group <- 8 #   Number of groups fro partition and permeability coefficients
     # Define size of P and X groups
-    P_groups <- length(unique(grouping[1:N_p]))  # sample size
-    X_groups <- length(unique(grouping[(N_p+1):(N_p+N_x)]))  # sample size
+    P_groups <- length(unique(grouping))  # sample size
+    X_groups <- P_groups
     # set.seed(0)
     # Initilise parameter values
     fitted <- rep(NA, P_groups+X_groups+2)
@@ -434,21 +422,18 @@ ga_fitness <- function(chromosome)
     
     #Define names for P and X groups
     for (i in 1:P_groups){
-      pnames[i] <- paste0("P", as.character(unique(grouping[1:N_p])[i]))
+      pnames[i] <- paste0("P", as.character(unique(grouping[1:N_group])[i]))
     }
     for (j in 1:X_groups){
-      xnames[j] <- paste0("X", as.character(unique(grouping[(N_p+1):(N_p+N_x)])[j]))
+      xnames[j] <- paste0("X", as.character(unique(grouping[1:N_group])[j]))
     }
     # Define the total parameter vector names
     names(fitted) <- c(pnames, xnames,"CLE_f",  "CLE_h")
     # Variable for keeping which value in the fitted params vector corresponds to each coefficient
-    position = rep(NA, length(grouping))
-    for (i in 1:(length(position))){
-      if(i<=8){
-        position[i] <- which(names(fitted) == paste0("P", as.character(grouping[i])))
-      }else{
-        position[i] <- which(names(fitted) == paste0("X", as.character(grouping[i])))
-      }
+    position = rep(NA, 2*length(grouping))
+    for (i in 1:(length(position)/2)){
+      position[i] <- which(names(fitted) == paste0("P", as.character(grouping[i])))
+      position[i+8] <- position[i] + P_groups
     }
     fitted[] <- c(log(exp(runif(P_groups, 3,6))),log(exp(runif(X_groups+2, -3,1))))
     
@@ -489,7 +474,7 @@ ga_fitness <- function(chromosome)
   inits <- create.inits(phys_pars, dose)
   
   
-  grouping <- decode_ga_real(chromosome)
+  grouping <- decode_ga_constraint(chromosome)
   grouping_position <- create.position(grouping)
   position <- grouping_position$position
   P_groups <- grouping_position$P_groups
@@ -498,7 +483,7 @@ ga_fitness <- function(chromosome)
   nm_optimizer <- NULL
   nm_values <- rep(NA,5)
   for (i in 1:5){
-    fit <- c(log(exp(runif(P_groups, 3,6))),log(exp(runif(X_groups+2, -4,-1))))
+    fit <- c(log(exp(runif(P_groups, 2,6))),log(exp(runif(X_groups+2, -4,-1))))
     try(
       # Run the Nelder Mead algorithmm to estimate the parameter values
       nm_optimizer<- dfoptim::nmk(par = fit, fn = obj.func,
@@ -556,7 +541,7 @@ ga_fitness <- function(chromosome)
 setwd("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm/Kreyling")
 start <- Sys.time()
 GA_results <- GA::ga(type = "real", fitness = ga_fitness, 
-                     lower = rep(1,16), upper = rep(8.999999,16),  
+                     lower = rep(1,8), upper = rep(8.999999,8),  
                      population = "gareal_Population",
                      selection = "gareal_lsSelection",
                      crossover = "gareal_laCrossover", 
@@ -570,8 +555,9 @@ GA_results <- GA::ga(type = "real", fitness = ga_fitness,
                      #in the best fitness value before the GA is stopped.
                      keepBest = TRUE, # best solutions at each iteration should be saved in a slot called bestSol.
                      parallel = (parallel::detectCores()),
+                     suggestions = matrix(c(6,  5,  3,  3,  5,  3,  3,  1), nrow = 1),
                      monitor =plot,
                      seed = 8080)
 stop <- Sys.time()
 print(paste0("Time ellapsed was ", stop-start))
-save.image(file = "FPG.RData")
+save.image(file = "PNG.RData")
