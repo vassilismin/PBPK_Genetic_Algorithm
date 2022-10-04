@@ -35,7 +35,7 @@ create.params <- function(comp_names, w){
   Regional_flow_fractions <- fractions[,2]/100 # % of total cardiac output
   #Capillary volume fractions (fractions of tissue volume)
   Capillary_fractions <- fractions[,3] # of tissue volume
-
+  
   W_tis <- rep(0,length(comp_names))
   V_tis <- rep(0,length(comp_names))
   V_cap <- rep(0,length(comp_names))
@@ -54,20 +54,20 @@ create.params <- function(comp_names, w){
   soft_tissues <- mean(228.57, 253.85, 214.29, 225.93, 231.04)
   
   ### Calculation of tissue weights  
-    W_tis[2] <- heart_expw
-    W_tis[3] <- kidneys_expw
-    W_tis[5] <- spleen_expw
-    W_tis[6] <- lungs_expw
-    W_tis[7] <- liver_expw
-    W_tis[9] <- skeleton_expw
-    W_tis[13] <- Tissue_fractions[13]*w
+  W_tis[2] <- heart_expw
+  W_tis[3] <- kidneys_expw
+  W_tis[5] <- spleen_expw
+  W_tis[6] <- lungs_expw
+  W_tis[7] <- liver_expw
+  W_tis[9] <- skeleton_expw
+  W_tis[13] <- Tissue_fractions[13]*w
   
   for (i in 1:length(comp_names)) {
     control <- comp_names[i]
     
     Regional_flow_fractions[i] <- ifelse(is.na(control), NA, Regional_flow_fractions[i])
     Capillary_fractions[i] <- ifelse(is.na(control), NA, Capillary_fractions[i])
-
+    
     
     ###Calculation of tissue volumes
     
@@ -93,7 +93,7 @@ create.params <- function(comp_names, w){
   V_tis[1] <- W_tis[1]/d_adipose     
   Q[1] <- Q_total - sum(Q[2:length(Q)],na.rm = TRUE) + Q[6]
   V_cap[1] <- V_tis[1]*Capillary_fractions[1] #Total_Blood - Vven - Vart - sum(V_cap[2:length(V_cap)], na.rm = TRUE)
-
+  
   parameters <- matrix(c(W_tis[],V_tis[],V_cap[],Q[]), ncol = 4)
   colnames(parameters) <- c("W_tis", "V_tis", "V_cap", "Q")
   rownames(parameters) <- all_comps
@@ -287,32 +287,89 @@ obj.func <- function(par,...){
   dots <- list(...)
   with(as.list(dots),{
     
+    params <- c(phys_pars, position, exp(par))
+    solution <- data.frame(ode(times = sample_time,  func = ode.func,
+                               y = inits, parms = params, 
+                               method="lsodes",rtol = 1e-3, atol = 1e-3))
+    
+    concentrations <- data.frame(solution$time, solution$C_li, solution$C_spl, solution$C_ki,
+                                 solution$C_lu, solution$C_ht, solution$Blood,
+                                 solution$C_bone,  solution$C_soft)
+    
+    concentrations <- concentrations[solution$time %in%time_points, 2:dim(concentrations)[2]]
+    excr_solution <-  data.frame(solution$time, solution$Feces)
+    excr_solution <- excr_solution[solution$time %in% excretion_time_points,2]
+    observed <- list()
+    predicted <- list()
+    
+    for (i in 1:length(concentrations)) {
+      observed[[i]] <- df[,i]
+      predicted[[i]] <- concentrations[,i]
+    }
+    observed[[i+1]] <- excretion #feces
+    predicted[[i+1]] <- excr_solution #feces
+    
+    discrepancy <- fitness.metric(observed, predicted)
+    
+    return(discrepancy)
+  })
+}
+
+
+
+
+obj.func2 <- function(par,phys_pars, position,  sample_time, inits, time_points, excretion_time_points){
+  
+    params <- c(phys_pars, position, exp(par))
+    solution <- data.frame(ode(times = sample_time,  func = ode.func,
+                               y = inits, parms = params, 
+                               method="lsodes",rtol = 1e-3, atol = 1e-3))
+    
+    concentrations <- data.frame(solution$time, solution$C_li, solution$C_spl, solution$C_ki,
+                                 solution$C_lu, solution$C_ht, solution$Blood,
+                                 solution$C_bone,  solution$C_soft)
+    
+    concentrations <- concentrations[solution$time %in%time_points, 2:dim(concentrations)[2]]
+    excr_solution <-  data.frame(solution$time, solution$Feces)
+    excr_solution <- excr_solution[solution$time %in% excretion_time_points,2]
+    observed <- list()
+    predicted <- list()
+    
+    for (i in 1:length(concentrations)) {
+      observed[[i]] <- df[,i]
+      predicted[[i]] <- concentrations[,i]
+    }
+    observed[[i+1]] <- excretion #feces
+    predicted[[i+1]] <- excr_solution #feces
+    
+    #Here we implement a barrier function, thus a solver that can handle 
+    # discontinious functions should be used
+    threshold <- 3
+    if(any(concentrations[,1]>threshold)){
+      discrepancy <- Inf
+    }else{
+      discrepancy <- fitness.metric(observed, predicted)
+    }
+    
+    return(discrepancy)
+  
+}
+
+eval_g_ineq <- function(par,phys_pars, position,  sample_time, inits,
+                 time_points, excretion_time_points){
+  
   params <- c(phys_pars, position, exp(par))
   solution <- data.frame(ode(times = sample_time,  func = ode.func,
                              y = inits, parms = params, 
                              method="lsodes",rtol = 1e-3, atol = 1e-3))
-  
+
   concentrations <- data.frame(solution$time, solution$C_li, solution$C_spl, solution$C_ki,
-                                solution$C_lu, solution$C_ht, solution$Blood,
-                                solution$C_bone,  solution$C_soft)
+                               solution$C_lu, solution$C_ht, solution$Blood,
+                               solution$C_bone,  solution$C_soft)
   
   concentrations <- concentrations[solution$time %in%time_points, 2:dim(concentrations)[2]]
-  excr_solution <-  data.frame(solution$time, solution$Feces)
-  excr_solution <- excr_solution[solution$time %in% excretion_time_points,2]
-  observed <- list()
-  predicted <- list()
-  
-  for (i in 1:length(concentrations)) {
-    observed[[i]] <- df[,i]
-    predicted[[i]] <- concentrations[,i]
-  }
-  observed[[i+1]] <- excretion #feces
-  predicted[[i+1]] <- excr_solution #feces
-
-  discrepancy <- fitness.metric(observed, predicted)
-  
-  return(discrepancy)
-  })
+  const <- c(sum(concentrations[,1] - 4))
+  return(const)
 }
 
 #===============
@@ -487,24 +544,80 @@ phys_pars <- create.params(compartments,mass)
 inits <- create.inits(phys_pars, dose)
 
 
-grouping_MAEP <- c(1:8,1:8)  
-set.seed(1234)
-position_MAEP <- create.position(grouping_MAEP)$position
 
-set.seed(123)
+grouping_MAEP <- c(1:8, 1:8)
+set.seed(35)
+position_MAEP <- create.position(grouping_MAEP)$position
 fitted_MAEP <-  create.position(position_MAEP)$fitted
-MAX = 500
+
+#=============================================
+#=============================================
+#                 dfoptim
+#=============================================
+#=============================================
+
+
+
+start.nm <- Sys.time()
 nm_optimizer_MAEP<- dfoptim::nmk(par = fitted_MAEP, fn = obj.func,
-                                 control = list(maxfeval=MAX, trace=T), inits = inits,
+                                inits = inits,
                                  time_points = time_points,
+                                control = list(maxfeval=1000),
                                  excretion_time_points =  excretion_time_points,
                                  sample_time = sample_time,
                                  phys_pars = phys_pars, 
                                  position = position_MAEP)
 params_MAEP<- exp(nm_optimizer_MAEP$par)
+stop.nm <- Sys.time()
+
+#=============================================
+#=============================================
+#                 NLOPTR
+#=============================================
+#=============================================
 
 
-params <- c(phys_pars, position_MAEP, params_MAEP)
+
+#===================================
+# Problem without constraints
+#==================================
+local_opts <- list( "algorithm" = "NLOPT_LN_COBYLA",
+                    "xtol_rel" = 1e-04,
+                    "ftol_rel" = 0.0,
+                    "ftol_abs" = 0.0,
+                    "xtol_abs" = 0.0 )
+
+opts <- list( "algorithm" = "NLOPT_LN_SBPLX",
+              "xtol_rel" = 0.0,
+              "ftol_rel" = 0.0,
+              "ftol_abs" = 0.0,
+              "xtol_abs" = 0.0 ,
+              "ranseed" = 153,
+              "maxeval" = 1000)#,
+              #"local_opts" = local_opts )#,
+           # "tol_constraints_ineq" = rep(1e-01,1))
+
+start.nl <- Sys.time()
+res2 <- nloptr::nloptr( x0= fitted_MAEP,
+                        eval_f = obj.func2,
+                        lb	= rep(-20, length(fitted_MAEP)),
+                        ub = rep(15, length(fitted_MAEP)),
+                       # eval_g_ineq = eval_g_ineq,
+                        opts = opts,
+                       phys_pars = phys_pars, position = position_MAEP, sample_time = sample_time,
+                        inits = inits,
+                        time_points = time_points,
+                        excretion_time_points =  excretion_time_points)
+stop.nl <- Sys.time()
+
+
+print("Time for NL was: ")
+print(stop.nl - start.nl)
+print(paste0("with OF value: ", res2$objective))
+
+
+
+params <- c(phys_pars, position_MAEP, exp(res2$solution))
 solution <- data.frame(ode(times = sample_time,  func = ode.func,
                            y = inits, parms = params, 
                            method="bdf",rtol = 1e-5, atol = 1e-5))
@@ -714,4 +827,5 @@ p9 <-  plots[[9]]
 
 ggpubr::ggarrange(p1, p2, p3, p4,p5,p6,p7,p8, p9, ncol=3, nrow=4, 
                   common.legend = TRUE, legend="right")
+
 
