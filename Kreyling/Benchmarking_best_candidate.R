@@ -615,27 +615,6 @@ value_MANG <- nm_optimizer_MANG$value
 }
 
 
-#=======
-# MING #
-#=======
-try(
-nm_optimizer_MING<- dfoptim::nmk(par = fitted_MING, fn = obj.func,
-                                 control = list(maxfeval=MAX, trace=F), inits = inits,
-                                 time_points = time_points,
-                                 excretion_time_points =  excretion_time_points,
-                                 sample_time = sample_time,
-                                 phys_pars = phys_pars, 
-                                 position = position_MING ),
-silent = TRUE
-)
-if(exists("nm_optimizer_MING")){
-  params_MING<- exp(nm_optimizer_MING$par)
-  value_MING <- nm_optimizer_MING$value
-}else{
-  params_MING<- NULL
-  value_MING <- NULL
-}
-
 
 #=======
 # FPG #
@@ -704,59 +683,96 @@ if(exists("nm_optimizer_SPPCG")){
 
 return(list(seed = seeds, value_MANG = value_MANG, value_MING = value_MING, value_FPG = value_FPG, value_PNG = value_PNG,
             value_SPPCG = value_SPPCG,
-            params_MANG = params_MANG,  params_MING = params_MING, params_FPG = params_FPG, params_PNG = params_PNG,
+            params_MANG = params_MANG,   params_FPG = params_FPG, params_PNG = params_PNG,
             params_SPPCG = params_SPPCG))
 }
 
 
-N_seeds <- 100
-set.seed(123)
+N_seeds <- 1000
+set.seed(1456)
 seeds <- sample(1:1000000,N_seeds)
 
 
 library(parallel)
 numCores <- detectCores()
-cl <- makeCluster(numCores-2)
+cl <- makeCluster(numCores)
 #clusterExport(cl, "seeds")
 output <- parLapply(cl, seeds, main_func)
 stopCluster(cl)
 
 
-values_MANG <- rep(NA,100)
-values_MING <- rep(NA,100)
-values_FPG <- rep(NA,100)
-values_PNG <- rep(NA,100)
-values_SPPCG <- rep(NA,100)
+values_MANG <- rep(NA,N_seeds)
+values_FPG <- rep(NA,N_seeds)
+values_PNG <- rep(NA,N_seeds)
+values_SPPCG <- rep(NA,N_seeds)
 
-parameters_MANG <- matrix(rep(NA,length(fitted_MANG)*100), nrow = 100)
-parameters_MING <- matrix(rep(NA,length(fitted_MING)*100), nrow = 100)
-parameters_FPG <- matrix(rep(NA,length(fitted_FPG)*100), nrow = 100)
-parameters_PNG <- matrix(rep(NA,length(fitted_PNG)*100), nrow = 100)
-parameters_SPPCG <- matrix(rep(NA,length(fitted_SPPCG)*100), nrow = 100)
+parameters_MANG <- matrix(rep(NA,length(fitted_MANG)*N_seeds), nrow = N_seeds)
+parameters_FPG <- matrix(rep(NA,length(fitted_FPG)*N_seeds), nrow = N_seeds)
+parameters_PNG <- matrix(rep(NA,length(fitted_PNG)*N_seeds), nrow = N_seeds)
+parameters_SPPCG <- matrix(rep(NA,length(fitted_SPPCG)*N_seeds), nrow = N_seeds)
 
-for (i in 1:100){
+for (i in 1:N_seeds){
   # Retrieve the objective function values for each estimation scheme and each iteration
   values_MANG[i] <- ifelse(is.null(output[[i]][["value_MANG"]]), NA, output[[i]][["value_MANG"]])
-  values_MING[i] <- ifelse(is.null(output[[i]][["value_MING"]]), NA, output[[i]][["value_MING"]])
   values_FPG[i] <- ifelse(is.null(output[[i]][["value_FPG"]]), NA, output[[i]][["value_FPG"]])
   values_PNG[i] <- ifelse(is.null(output[[i]][["value_PNG"]]), NA, output[[i]][["value_PNG"]])
   values_SPPCG[i] <- ifelse(is.null(output[[i]][["value_SPPCG"]]), NA, output[[i]][["value_SPPCG"]])
   
   # Retrieve the parameter values for each estimation scheme and each iteration
   parameters_MANG[i,] <- if(is.null(output[[i]][["params_MANG"]])) rep(NA,length(fitted_MANG)) else output[[i]][["params_MANG"]]
-  parameters_MING[i,] <- if(is.null(output[[i]][["params_MING"]])) rep(NA,length(fitted_MING))else output[[i]][["params_MING"]]
   parameters_FPG[i,] <- if(is.null(output[[i]][["params_FPG"]])) rep(NA,length(fitted_FPG)) else output[[i]][["params_FPG"]]
   parameters_PNG[i,] <- if(is.null(output[[i]][["params_PNG"]])) rep(NA,length(fitted_PNG)) else output[[i]][["params_PNG"]]
   parameters_SPPCG[i,] <- if(is.null(output[[i]][["params_SPPCG"]])) rep(NA,length(fitted_SPPCG)) else output[[i]][["params_SPPCG"]]
 }
 
-OF_values <- data.frame(iteration = 1:100,MANG = values_MANG,  FPG = values_FPG, PNG = values_PNG, SPPCG = values_SPPCG)
+
+# Plot Objective Function density of each model to see how much is the OF value affected by initialization
+OF_values <- data.frame(iteration = 1:N_seeds,MANG = values_MANG,  FPG = values_FPG, PNG = values_PNG, SPPCG = values_SPPCG)
 
 melt_OF_data <- reshape2::melt(OF_values, id = c("iteration")) 
 
-library(ggplot2)
-ggplot(melt_OF_data, aes(x=value, color=variable, fill=variable)) +
-  geom_density(alpha=0.3)+
-  scale_x_continuous(limits = c(0.3, 1))
+ggplot2::ggplot(melt_OF_data, aes(x=value, color=variable, fill=variable)) +
+  ggplot2::geom_density(alpha=0.3)+
+  ggplot2::scale_x_continuous(limits = c(0.4, 1.3))
 
 
+
+#Create one matrix to hold the value of each parameter for each model per initialization
+N_par <- 18 
+N_model <- 5 #MANG, MING, FPG, PNG,SPPCG
+pmatrix <- array(rep(NA, N_seeds*N_par*N_model), dim =c(N_seeds, N_par, N_model),  dimnames = list(as.character(1:100),
+                                                                  c("P_ht", "P_lu", "P_li", "P_spl","P_ki", "P_git",
+                                                                    "P_bone", "P_rob", "x_ht", "x_lu",
+                                                                    "x_li", "x_spl", "x_ki", "x_git", "x_bone",
+                                                                    "x_rob", "CLE_f",  "CLE_h" ),
+                                                                  c("MANG",  "MING", "FPG", "PNG","SPPCG")))
+
+for (i in 1:N_seeds){
+  pmatrix[i,1:16,1] <-  unlist(lapply(1:16, function(x) {parameters_MANG[i,position_MANG[x]]}))
+  pmatrix[i,17:18,1] <- parameters_MANG[i,c((dim(parameters_MANG)[2]-1), dim(parameters_MANG)[2])]
+  pmatrix[i,1:16,2] <-  unlist(lapply(1:16, function(x) {parameters_MING[i,position_MING[x]]}))
+  pmatrix[i,17:18,2] <- parameters_MING[i,c((dim(parameters_MING)[2]-1), dim(parameters_MING)[2])]
+  pmatrix[i,1:16,3] <-  unlist(lapply(1:16, function(x) {parameters_FPG[i,position_FPG[x]]}))
+  pmatrix[i,17:18,3] <- parameters_FPG[i,c((dim(parameters_FPG)[2]-1), dim(parameters_FPG)[2])]
+  pmatrix[i,1:16,4] <-  unlist(lapply(1:16, function(x) {parameters_PNG[i,position_PNG[x]]}))
+  pmatrix[i,17:18,4] <- parameters_PNG[i,c((dim(parameters_PNG)[2]-1), dim(parameters_PNG)[2])]
+  pmatrix[i,1:16,5] <-  unlist(lapply(1:16, function(x) {parameters_SPPCG[i,position_SPPCG[x]]}))
+  pmatrix[i,17:18,5] <- parameters_SPPCG[i,c((dim(parameters_SPPCG)[2]-1), dim(parameters_SPPCG)[2])]
+}
+
+
+# Check the parameter distributions
+check_model <- "PNG"
+check_parameter_dist <- data.frame(pmatrix[,,eval(check_model)])
+names(check_parameter_dist) <-  c("P_ht", "P_lu", "P_li", "P_spl","P_ki", "P_git",
+                                  "P_bone", "P_rob", "x_ht", "x_lu",
+                                  "x_li", "x_spl", "x_ki", "x_git", "x_bone",
+                                  "x_rob", "CLE_f",  "CLE_h" )
+
+ggplot2::ggplot(check_parameter_dist,aes(x=CLE_f)) +
+  ggplot2::geom_density()+
+  ggplot2::scale_x_continuous(limits = c(0, 1))
+
+
+
+save.image(file = "Benchmarking_best_initialization.RData")

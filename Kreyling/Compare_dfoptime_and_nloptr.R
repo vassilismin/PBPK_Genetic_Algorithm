@@ -506,7 +506,7 @@ create.position <- function(grouping){
       position[i] <- which(names(fitted) == paste0("X", as.character(grouping[i])))
     }
   }
-  fitted[] <- c(log(exp(runif(P_groups, 3,6))),log(exp(runif(X_groups+2, -3,1))))
+  fitted[] <- c(log(rep(10,P_groups)),log(rep(0.01,X_groups)), log(0.16), log(4.5e-05))
   
   return(list("position"=position,"fitted"=fitted))
 }
@@ -592,16 +592,17 @@ opts <- list( "algorithm" = "NLOPT_LN_SBPLX",
               "ftol_rel" = 0.0,
               "ftol_abs" = 0.0,
               "xtol_abs" = 0.0 ,
-              "ranseed" = 153,
-              "maxeval" = 1000)#,
+              "maxeval" = 1000,
+              "print_level" = 1)#,
+                #"ranseed" = 153,
               #"local_opts" = local_opts )#,
            # "tol_constraints_ineq" = rep(1e-01,1))
 
 start.nl <- Sys.time()
 res2 <- nloptr::nloptr( x0= fitted_MAEP,
                         eval_f = obj.func2,
-                        lb	= rep(-20, length(fitted_MAEP)),
-                        ub = rep(15, length(fitted_MAEP)),
+                        lb	= rep(-15, length(fitted_MAEP)),
+                        ub = rep(9, length(fitted_MAEP)),
                        # eval_g_ineq = eval_g_ineq,
                         opts = opts,
                        phys_pars = phys_pars, position = position_MAEP, sample_time = sample_time,
