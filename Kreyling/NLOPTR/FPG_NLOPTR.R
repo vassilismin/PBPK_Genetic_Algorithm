@@ -1,7 +1,7 @@
 
 ga_fitness <- function(chromosome) 
 { 
-  setwd("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm/Kreyling")
+  setwd("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm/Kreyling\NLOPTR")
   
   #####################################
   ### Function to create Parameters ###
@@ -284,10 +284,8 @@ ga_fitness <- function(chromosome)
   #3. Objective function  
   #======================
   
-  obj.func <- function(par,...){
-    dots <- list(...)
-    with(as.list(dots),{
-      
+  obj.func <- function(par,phys_pars, position,  sample_time, inits, time_points, excretion_time_points){
+
       params <- c(phys_pars, position, exp(par))
       solution <- data.frame(deSolve::ode(times = sample_time,  func = ode.func,
                                  y = inits, parms = params, 
@@ -313,7 +311,6 @@ ga_fitness <- function(chromosome)
       discrepancy <- fitness.metric(observed, predicted)
       
       return(discrepancy)
-    })
   }
   
   #===============
@@ -450,7 +447,7 @@ ga_fitness <- function(chromosome)
         position[i] <- which(names(fitted) == paste0("X", as.character(grouping[i])))
       }
     }
-    fitted[] <- c(log(exp(runif(P_groups, 3,6))),log(exp(runif(X_groups+2, -3,1))))
+    fitted[] <-  c(log(rep(10,P_groups)),log(rep(0.01,X_groups)), log(0.16), log(4.5e-05))
     
     return(list("position"=position,"fitted"=fitted, 'P_groups' = P_groups, X_groups = X_groups))
   }
@@ -495,30 +492,38 @@ ga_fitness <- function(chromosome)
   P_groups <- grouping_position$P_groups
   X_groups <- grouping_position$X_groups
   
-  nm_optimizer <- NULL
-  nm_values <- rep(NA,5)
-  for (i in 1:5){
-    fit <- c(log(exp(runif(P_groups, 3,6))),log(exp(runif(X_groups+2, -4,-1))))
+  optimizer <- NULL
+  opts <- list( "algorithm" = "NLOPT_LN_NEWUOA",
+                "xtol_rel" = 0.0,
+                "ftol_rel" = 0.0,
+                "ftol_abs" = 0.0,
+                "xtol_abs" = 0.0 ,
+                "maxeval" = 500)
+
+    fit <- c(log(rep(10,P_groups)),log(rep(0.01,X_groups)), log(0.16), log(4.5e-05))
     try(
-      # Run the Nelder Mead algorithmm to estimate the parameter values
-      nm_optimizer<- dfoptim::nmk(par = fit, fn = obj.func,
-                                  control = list(maxfeval=500), inits = inits,
-                                  time_points = time_points,
-                                  excretion_time_points =  excretion_time_points,
-                                  sample_time = sample_time,
-                                  phys_pars = phys_pars, 
-                                  position = position ),
+      # Run the optimization algorithmm to estimate the parameter values
+      optimizer <- nloptr::nloptr( x0= fit,
+                      eval_f = obj.func,
+                      lb	= rep(-15, length(fit)),
+                      ub = rep(9, length(fit)),
+                      opts = opts,
+                      phys_pars = phys_pars, position = position, sample_time = sample_time,
+                      inits = inits,
+                      time_points = time_points,
+                      excretion_time_points =  excretion_time_points),
       silent = TRUE
     )
     
-    if(is.null(nm_optimizer)){
-      nm_values[i] <- -100 
+    # If the otpimizer didn't run, set a small predefined value for the objective function value
+    if(is.null(optimizer)){
+      of_value <- -100 
     }else{
-      nm_values[i] <- -nm_optimizer$value
+      of_value <- -optimizer$objective
     }
-  }
   
-  return(max(nm_values))
+  
+  return(of_value)
 }
 
 
@@ -561,12 +566,12 @@ GA_results <- GA::ga(type = "real", fitness = ga_fitness,
                      selection = "gareal_lsSelection",
                      crossover = "gareal_laCrossover", 
                      mutation = "gareal_raMutation",
-                     popSize =  36, #the population size.
+                     popSize =  60, #the population size.
                      pcrossover = 0.8, #the probability of crossover between pairs of chromosomes.
-                     pmutation = 0.25, #the probability of mutation in a parent chromosome
-                     elitism = 4, #the number of best fitness individuals to survive at each generation. 
+                     pmutation = 0.4, #the probability of mutation in a parent chromosome
+                     elitism = 5, #the number of best fitness individuals to survive at each generation. 
                      maxiter = 100, #the maximum number of iterations to run before the GA search is halted.
-                     run = 20, # the number of consecutive generations without any improvement
+                     run = 25, # the number of consecutive generations without any improvement
                      #in the best fitness value before the GA is stopped.
                      keepBest = TRUE, # best solutions at each iteration should be saved in a slot called bestSol.
                      parallel = (parallel::detectCores()),
