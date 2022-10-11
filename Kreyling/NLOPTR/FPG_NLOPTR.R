@@ -1,7 +1,7 @@
 
 ga_fitness <- function(chromosome) 
 { 
-  setwd("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm/Kreyling\NLOPTR")
+  setwd("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm/Kreyling/NLOPTR")
   
   #####################################
   ### Function to create Parameters ###
@@ -517,13 +517,13 @@ ga_fitness <- function(chromosome)
     
     # If the otpimizer didn't run, set a small predefined value for the objective function value
     if(is.null(optimizer)){
-      of_value <- -100 
+      of_value <- -1000 
     }else{
       of_value <- -optimizer$objective
     }
   
   
-  return(of_value)
+  return(1e02*of_value)
 }
 
 
@@ -558,7 +558,7 @@ ga_fitness <- function(chromosome)
 # gareal_raMutation: Uniform random mutation
 # gareal_nraMutation: Nonuniform random mutation.
 # gareal_rsMutation: Random mutation around the solution.
-setwd("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm/Kreyling")
+setwd("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm/Kreyling/NLOPTR")
 start <- Sys.time()
 GA_results <- GA::ga(type = "real", fitness = ga_fitness, 
                      lower = rep(1,16), upper = rep(8.999999,16),  
@@ -579,4 +579,4 @@ GA_results <- GA::ga(type = "real", fitness = ga_fitness,
                      seed = 8080)
 stop <- Sys.time()
 print(paste0("Time ellapsed was ", stop-start))
-save.image(file = "FPG.RData")
+save.image(file = "FPG_nloptr.RData")

@@ -1,7 +1,7 @@
 
 ga_fitness <- function(chromosome) 
 { 
-  setwd("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm/Kreyling")
+  setwd("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm/Kreyling/NLOPTR")
   
   #####################################
   ### Function to create Parameters ###
@@ -284,36 +284,33 @@ ga_fitness <- function(chromosome)
   #3. Objective function  
   #======================
   
-  obj.func <- function(par,...){
-    dots <- list(...)
-    with(as.list(dots),{
-      
-      params <- c(phys_pars, position, exp(par))
-      solution <- data.frame(deSolve::ode(times = sample_time,  func = ode.func,
-                                          y = inits, parms = params, 
-                                          method="lsodes",rtol = 1e-3, atol = 1e-3))
-      
-      concentrations <- data.frame(solution$time, solution$C_li, solution$C_spl, solution$C_ki,
-                                   solution$C_lu, solution$C_ht, solution$Blood,
-                                   solution$C_bone,  solution$C_soft)
-      
-      concentrations <- concentrations[solution$time %in%time_points, 2:dim(concentrations)[2]]
-      excr_solution <-  data.frame(solution$time, solution$Feces)
-      excr_solution <- excr_solution[solution$time %in% excretion_time_points,2]
-      observed <- list()
-      predicted <- list()
-      
-      for (i in 1:length(concentrations)) {
-        observed[[i]] <- df[,i]
-        predicted[[i]] <- concentrations[,i]
-      }
-      observed[[i+1]] <- excretion #feces
-      predicted[[i+1]] <- excr_solution #feces
-      
-      discrepancy <- fitness.metric(observed, predicted)
-      
-      return(discrepancy)
-    })
+  obj.func <- function(par,phys_pars, position,  sample_time, inits, time_points, excretion_time_points){
+    
+    params <- c(phys_pars, position, exp(par))
+    solution <- data.frame(deSolve::ode(times = sample_time,  func = ode.func,
+                                        y = inits, parms = params, 
+                                        method="lsodes",rtol = 1e-3, atol = 1e-3))
+    
+    concentrations <- data.frame(solution$time, solution$C_li, solution$C_spl, solution$C_ki,
+                                 solution$C_lu, solution$C_ht, solution$Blood,
+                                 solution$C_bone,  solution$C_soft)
+    
+    concentrations <- concentrations[solution$time %in%time_points, 2:dim(concentrations)[2]]
+    excr_solution <-  data.frame(solution$time, solution$Feces)
+    excr_solution <- excr_solution[solution$time %in% excretion_time_points,2]
+    observed <- list()
+    predicted <- list()
+    
+    for (i in 1:length(concentrations)) {
+      observed[[i]] <- df[,i]
+      predicted[[i]] <- concentrations[,i]
+    }
+    observed[[i+1]] <- excretion #feces
+    predicted[[i+1]] <- excr_solution #feces
+    
+    discrepancy <- fitness.metric(observed, predicted)
+    
+    return(discrepancy)
   }
   
   #===============
@@ -450,7 +447,7 @@ ga_fitness <- function(chromosome)
         position[i] <- which(names(fitted) == paste0("X", as.character(grouping[i])))
       }
     }
-    fitted[] <- c(log(exp(runif(P_groups, 3,6))),log(exp(runif(X_groups+2, -3,1))))
+    fitted[] <-  c(log(rep(10,P_groups)),log(rep(0.01,X_groups)), log(0.16), log(4.5e-05))
     
     return(list("position"=position,"fitted"=fitted, 'P_groups' = P_groups, X_groups = X_groups))
   }
@@ -495,32 +492,38 @@ ga_fitness <- function(chromosome)
   P_groups <- grouping_position$P_groups
   X_groups <- grouping_position$X_groups
   
-  nm_optimizer <- NULL
+  optimizer <- NULL
+  opts <- list( "algorithm" = "NLOPT_LN_NEWUOA",
+                "xtol_rel" = 1e-07,
+                "ftol_rel" = 0.0,
+                "ftol_abs" = 0.0,
+                "xtol_abs" = 0.0 ,
+                "maxeval" = 500)
   
+  fit <- c(log(rep(10,P_groups)),log(rep(0.01,X_groups)), log(0.16), log(4.5e-05))
+  try(
+    # Run the optimization algorithmm to estimate the parameter values
+    optimizer <- nloptr::nloptr( x0= fit,
+                                 eval_f = obj.func,
+                                 lb	= rep(-15, length(fit)),
+                                 ub = rep(9, length(fit)),
+                                 opts = opts,
+                                 phys_pars = phys_pars, position = position, sample_time = sample_time,
+                                 inits = inits,
+                                 time_points = time_points,
+                                 excretion_time_points =  excretion_time_points),
+    silent = TRUE
+  )
   
-  nm_values <- rep(NA,5)
-  for (i in 1:5){
-    fit <- c(log(exp(runif(P_groups, 2,6))),log(exp(runif(X_groups+2, -4,-1))))
-    try(
-      # Run the Nelder Mead algorithmm to estimate the parameter values
-      nm_optimizer<- dfoptim::nmk(par = fit, fn = obj.func,
-                                  control = list(maxfeval=500), inits = inits,
-                                  time_points = time_points,
-                                  excretion_time_points =  excretion_time_points,
-                                  sample_time = sample_time,
-                                  phys_pars = phys_pars, 
-                                  position = position ),
-      silent = TRUE
-    )
-    
-    if(is.null(nm_optimizer)){
-      nm_values[i] <- -100 
-    }else{
-      nm_values[i] <- -nm_optimizer$value
-    }
+  # If the otpimizer didn't run, set a small predefined value for the objective function value
+  if(is.null(optimizer)){
+    of_value <- -1000 
+  }else{
+    of_value <- -optimizer$objective
   }
   
-  return(max(nm_values))
+  
+  return(1e02*of_value)
 }
 
 
@@ -555,7 +558,7 @@ ga_fitness <- function(chromosome)
 # gareal_raMutation: Uniform random mutation
 # gareal_nraMutation: Nonuniform random mutation.
 # gareal_rsMutation: Random mutation around the solution.
-setwd("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm/Kreyling")
+setwd("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm/Kreyling/NLOPTR")
 start <- Sys.time()
 GA_results <- GA::ga(type = "real", fitness = ga_fitness, 
                      lower = rep(1,16), upper = rep(3.999999,16),  
@@ -563,12 +566,12 @@ GA_results <- GA::ga(type = "real", fitness = ga_fitness,
                      selection = "gareal_lsSelection",
                      crossover = "gareal_laCrossover", 
                      mutation = "gareal_raMutation",
-                     popSize =  36, #the population size.
+                     popSize =  60, #the population size.
                      pcrossover = 0.8, #the probability of crossover between pairs of chromosomes.
-                     pmutation = 0.25, #the probability of mutation in a parent chromosome
-                     elitism = 4, #the number of best fitness individuals to survive at each generation. 
+                     pmutation = 0.4, #the probability of mutation in a parent chromosome
+                     elitism = 5, #the number of best fitness individuals to survive at each generation. 
                      maxiter = 100, #the maximum number of iterations to run before the GA search is halted.
-                     run = 20, # the number of consecutive generations without any improvement
+                     run = 25, # the number of consecutive generations without any improvement
                      #in the best fitness value before the GA is stopped.
                      keepBest = TRUE, # best solutions at each iteration should be saved in a slot called bestSol.
                      parallel = (parallel::detectCores()),
@@ -576,4 +579,4 @@ GA_results <- GA::ga(type = "real", fitness = ga_fitness,
                      seed = 8080)
 stop <- Sys.time()
 print(paste0("Time ellapsed was ", stop-start))
-save.image(file = "SPPCG.RData")
+save.image(file = "PNG_nloptr.RData")
