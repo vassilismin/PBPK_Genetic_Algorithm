@@ -773,17 +773,17 @@ OF_values <- data.frame(iteration = 1:N_seeds,MANG = values_MANG, MING = values_
                         SPPCG = values_SPPCG)
 
 melt_OF_data <- reshape2::melt(OF_values, id = c("iteration")) 
-
-ggplot2::ggplot(melt_OF_data, aes(x=value, color=variable, fill=variable)) +
-  ggplot2::geom_density(alpha=0.3)+
-  ggplot2::scale_x_continuous(limits = c(0.4, 1.3))
+library(ggplot2)
+ggplot(melt_OF_data, aes(x=value, color=variable, fill=variable)) +
+  geom_density(alpha=0.3)+
+  scale_x_continuous(limits = c(0.35, 1))
 
 
 
 #Create one matrix to hold the value of each parameter for each model per initialization
 N_par <- 18 
 N_model <- 5 #MANG, MING, FPG, PNG,SPPCG
-pmatrix <- array(rep(NA, N_seeds*N_par*N_model), dim =c(N_seeds, N_par, N_model),  dimnames = list(as.character(1:100),
+pmatrix <- array(rep(NA, N_seeds*N_par*N_model), dim =c(N_seeds, N_par, N_model),  dimnames = list(as.character(1:N_seeds),
                                                                   c("P_ht", "P_lu", "P_li", "P_spl","P_ki", "P_git",
                                                                     "P_bone", "P_rob", "x_ht", "x_lu",
                                                                     "x_li", "x_spl", "x_ki", "x_git", "x_bone",
@@ -805,15 +805,19 @@ for (i in 1:N_seeds){
 
 
 # Check the parameter distributions
-check_model <- "PNG"
+check_model <- "FPG"
 check_parameter_dist <- data.frame(pmatrix[,,eval(check_model)])
 names(check_parameter_dist) <-  c("P_ht", "P_lu", "P_li", "P_spl","P_ki", "P_git",
                                   "P_bone", "P_rob", "x_ht", "x_lu",
                                   "x_li", "x_spl", "x_ki", "x_git", "x_bone",
                                   "x_rob", "CLE_f",  "CLE_h" )
 
-ggplot2::ggplot(check_parameter_dist,aes(x=CLE_f)) +
-  ggplot2::geom_density()+
+ggplot2::ggplot(check_parameter_dist,aes(x=P_spl)) +
+  ggplot2::geom_density()
+
+
+
++
   ggplot2::scale_x_continuous(limits = c(0, 1))
 
 
