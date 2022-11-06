@@ -217,8 +217,8 @@ ga_fitness <- function(chromosome)
       
       # Liver 
       dM_cap_li <- Q_li*(C_art - C_cap_li) + Q_spl*(C_cap_spl - C_cap_li) + Q_git*(C_cap_git - C_cap_li) -
-        x_li*(Q_li)*(C_cap_li - C_li/P_li)
-      dM_li <- x_li*Q_li*(C_cap_li - C_li/P_li) - CLE_h*M_li
+        x_li*(Q_li+Q_git+Q_spl)*(C_cap_li - C_li/P_li)
+      dM_li <- x_li*(Q_li+Q_git+Q_spl)*(C_cap_li - C_li/P_li) - CLE_h*M_li
       
       # Spleen
       dM_cap_spl <- Q_spl*(C_art - C_cap_spl) - x_spl*Q_spl*(C_cap_spl - C_spl/P_spl)
@@ -479,7 +479,7 @@ ga_fitness <- function(chromosome)
   
   optimizer <- NULL
   opts <- list( "algorithm" = "NLOPT_LN_NEWUOA",
-                "xtol_rel" = 0.0,
+                "xtol_rel" = 1e-07,
                 "ftol_rel" = 0.0,
                 "ftol_abs" = 0.0,
                 "xtol_abs" = 0.0 ,
@@ -552,16 +552,16 @@ GA_results <- GA::ga(type = "real", fitness = ga_fitness,
                      crossover = "gareal_laCrossover", 
                      mutation = "gareal_raMutation",
                      popSize =  60, #the population size.
-                     pcrossover = 0.8, #the probability of crossover between pairs of chromosomes.
+                     pcrossover = 0.85, #the probability of crossover between pairs of chromosomes.
                      pmutation = 0.4, #the probability of mutation in a parent chromosome
                      elitism = 5, #the number of best fitness individuals to survive at each generation. 
-                     maxiter = 100, #the maximum number of iterations to run before the GA search is halted.
-                     run = 25, # the number of consecutive generations without any improvement
+                     maxiter = 200, #the maximum number of iterations to run before the GA search is halted.
+                     run = 50, # the number of consecutive generations without any improvement
                      #in the best fitness value before the GA is stopped.
                      keepBest = TRUE, # best solutions at each iteration should be saved in a slot called bestSol.
                      parallel = (parallel::detectCores()),
                      monitor =plot,
-                     seed = 8080)
+                     seed = 4234)
 stop <- Sys.time()
 print(paste0("Time ellapsed was ", stop-start))
 save.image(file = "SPPCG_nloptr.RData")
