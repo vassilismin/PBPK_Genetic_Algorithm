@@ -1,9 +1,18 @@
+# Set the directory from where all relevant data all loaded
+setwd("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm/Kreyling/NLOPTR")
 
-ga_fitness <- function(chromosome) 
-{ 
-  setwd("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm/Kreyling/NLOPTR")
-  
-  #####################################
+# Load results from genetic algorithm grouping
+load("FPG_nloptr.RData")
+GA_results_FPG <- GA_results@solution[1,]  
+load("PNG_nloptr.RData")
+GA_results_PNG <- GA_results@solution[1,]  
+load("SPPCG_nloptr.RData")
+GA_results_SPPCG <- GA_results@solution[1,]  
+# Clear all results except from the groupings
+rm(list=ls()[! ls() %in% c("GA_results_FPG", "GA_results_PNG","GA_results_SPPCG")])
+
+
+ #####################################
   ### Function to create Parameters ###
   #####################################
   create.params <- function(comp_names, w){
@@ -101,7 +110,8 @@ ga_fitness <- function(chromosome)
     
     Vven=0.64*Total_Blood
     Vart=0.15*Total_Blood
-
+    Wm_ven=0.01*Vven
+    Wm_art=0.01*Vart
     
     return(c(
       "Q_total"=Q_total, "V_blood"=Total_Blood, "V_ven"=Vven, "V_art"=Vart,
@@ -185,7 +195,7 @@ ga_fitness <- function(chromosome)
       CLE_u <- 0
       
       
-      # Concentrations (micro grams of NPs)/(g tissue)
+      # Concentrations (mg of NPs)/(g of wet tissue)
       C_ht <- M_ht/w_ht
       C_cap_ht <- M_cap_ht/V_cap_ht
       C_lu <- M_lu/w_lu
@@ -214,6 +224,7 @@ ga_fitness <- function(chromosome)
       dM_cap_lu <- Q_total*(C_ven - C_cap_lu) - x_lu*Q_total*(C_cap_lu - C_lu/P_lu)
       dM_lu <-  x_lu*Q_total*(C_cap_lu - C_lu/P_lu)
       
+      # Liver 
       # Liver 
       dM_cap_li <- Q_li*(C_art - C_cap_li) + Q_spl*(C_cap_spl - C_cap_li) + Q_git*(C_cap_git - C_cap_li) -
         x_li*(Q_li+Q_git+Q_spl)*(C_cap_li - C_li/P_li)
@@ -282,7 +293,6 @@ ga_fitness <- function(chromosome)
   #======================
   #3. Objective function  
   #======================
-  
   obj.func <- function(par,phys_pars, position,  sample_time, inits, time_points, excretion_time_points){
     
     params <- c(phys_pars, position, exp(par))
@@ -307,7 +317,7 @@ ga_fitness <- function(chromosome)
     observed[[i+1]] <- excretion #feces
     predicted[[i+1]] <- excr_solution #feces
     
-    discrepancy <- fitness.metric(observed, predicted)
+    discrepancy <- PBKOF(observed, predicted)
     
     return(discrepancy)
   }
@@ -317,14 +327,14 @@ ga_fitness <- function(chromosome)
   #===============
   
   ############# Calculate PBPK indices #############
-  # fitness.metric function the returns the compartment and consolidated (Total) discrepancy index
+  # PBKOF function the returns the compartment and consolidated (Total) discrepancy index
   # of a PBPK model, given some experimental data. It follows the paper of Krishnan et al.1995.
   # observed: list of vectors containing the experimental data
   # predictions: list of vectors containing the predicted data
   # names of the compartments
   
   
-  fitness.metric <- function(observed, predicted, comp.names =NULL){
+  PBKOF <- function(observed, predicted, comp.names =NULL){
     # Check if the user provided the correct input format
     if (!is.list(observed) || !is.list(predicted)){
       stop(" The observations and predictions must be lists")
@@ -379,7 +389,9 @@ ga_fitness <- function(chromosome)
     #return(list(Total_index = Ic, Compartment_index= I))
   }
   
-  decode_ga_real <- function(real_num){ 
+# Create functions for decoding the results of the Genetic Algorithms grouping 
+# Function for decoding FPG and PNG schemes
+  decode_ga <- function(real_num){ 
     # Partition coefficient grouping
     P1 <- floor(real_num[1])
     P2 <- floor(real_num[2])
@@ -405,6 +417,25 @@ ga_fitness <- function(chromosome)
                        X6,X7,X8), names = c("P1","P2","P3","P4",
                                             "P5","P6", "P7", "P8", "X1",
                                             "X2", "X3", "X4", "X5", "X6", "X7", "X8"))
+    return(out)
+  }
+  
+  # Function for decoding SPPCG scheme
+  decode_ga_sppcg <- function(real_num)
+  { 
+    # Partition coefficient grouping
+    P1 <- floor(real_num[1])
+    P2 <- floor(real_num[2])
+    P3 <- floor(real_num[3])
+    P4 <- floor(real_num[4])
+    P5 <- floor(real_num[5])
+    P6 <- floor(real_num[6])
+    P7 <- floor(real_num[7])
+    P8 <- floor(real_num[8])
+    
+    
+    out <- structure(c(P1,P2,P3,P4,P5,P6,P7,P8), names = c("P1","P2","P3","P4",
+                                                           "P5","P6", "P7", "P8"))
     return(out)
   }
   
@@ -452,6 +483,41 @@ ga_fitness <- function(chromosome)
   }
   
   
+  create.position_sppcg <- function(grouping){
+    #---------------------------
+    # Define fitting parameters 
+    #---------------------------
+    N_group <- 8 #   Number of groups fro partition and permeability coefficients
+    # Define size of P and X groups
+    P_groups <- length(unique(grouping))  # sample size
+    X_groups <- P_groups
+    # set.seed(0)
+    # Initilise parameter values
+    fitted <- rep(NA, P_groups+X_groups+2)
+    # Initialise naming vectors
+    pnames <- rep(NA, P_groups)
+    xnames <- rep(NA, X_groups)
+    
+    #Define names for P and X groups
+    for (i in 1:P_groups){
+      pnames[i] <- paste0("P", as.character(unique(grouping[1:N_group])[i]))
+    }
+    for (j in 1:X_groups){
+      xnames[j] <- paste0("X", as.character(unique(grouping[1:N_group])[j]))
+    }
+    # Define the total parameter vector names
+    names(fitted) <- c(pnames, xnames,"CLE_f",  "CLE_h")
+    # Variable for keeping which value in the fitted params vector corresponds to each coefficient
+    position = rep(NA, 2*length(grouping))
+    for (i in 1:(length(position)/2)){
+      position[i] <- which(names(fitted) == paste0("P", as.character(grouping[i])))
+      position[i+8] <- position[i] + P_groups
+    }
+    fitted[] <-  c(log(rep(10,P_groups)),log(rep(0.01,X_groups)), log(0.16), log(4.5e-05))
+    
+    return(list("position"=position,"fitted"=fitted, 'P_groups' = P_groups, X_groups = X_groups))
+  }
+  
   #===============
   # Load data  
   #===============
@@ -484,98 +550,419 @@ ga_fitness <- function(chromosome)
   phys_pars <- create.params(compartments,mass)
   inits <- create.inits(phys_pars, dose)
   
+  # Create the parameter grouping for all five estimation schemes
+  grouping_MANG <- c(1:8, 1:8)
+  grouping_MING <- c(rep(1,8), rep(1,8))
+  grouping_FPG <- decode_ga(GA_results_FPG)  
+  grouping_PNG <- decode_ga(GA_results_PNG)  
+  grouping_SPPCG <- decode_ga_sppcg(GA_results_SPPCG)  
   
-  grouping <- decode_ga_real(chromosome)
-  grouping_position <- create.position(grouping)
-  position <- grouping_position$position
-  P_groups <- grouping_position$P_groups
-  X_groups <- grouping_position$X_groups
   
-  optimizer <- NULL
+  # Create the position vector to match the ODE parameters with the fitted parameter values
+  
+  grouping_position_MANG <- create.position(grouping_MANG)
+  position_MANG <- grouping_position_MANG$position
+  P_groups_MANG <- grouping_position_MANG$P_groups
+  X_groups_MANG <- grouping_position_MANG$X_groups
+  fitted_MANG <- grouping_position_MANG$fitted
+  
+  grouping_position_MING <- create.position(grouping_MING)
+  position_MING <- grouping_position_MING$position
+  P_groups_MING <- grouping_position_MING$P_groups
+  X_groups_MING <- grouping_position_MING$X_groups
+  fitted_MING <- grouping_position_MING$fitted
+  
+  
+  grouping_position_FPG <- create.position(grouping_FPG)
+  position_FPG <- grouping_position_FPG$position
+  P_groups_FPG <- grouping_position_FPG$P_groups
+  X_groups_FPG <- grouping_position_FPG$X_groups
+  fitted_FPG <- grouping_position_FPG$fitted
+  
+  
+  grouping_position_PNG <- create.position(grouping_PNG)
+  position_PNG <- grouping_position_PNG$position
+  P_groups_PNG <- grouping_position_PNG$P_groups
+  X_groups_PNG <- grouping_position_PNG$X_groups
+  fitted_PNG <- grouping_position_PNG$fitted
+  
+  
+  grouping_position_SPPCG <- create.position_sppcg(grouping_SPPCG)
+  position_SPPCG <- grouping_position_SPPCG$position
+  P_groups_SPPCG <- grouping_position_SPPCG$P_groups
+  X_groups_SPPCG <- grouping_position_SPPCG$X_groups
+  fitted_SPPCG <- grouping_position_SPPCG$fitted
+  
+  # Options for the NLOPT algorithm
   opts <- list( "algorithm" = "NLOPT_LN_NEWUOA",
-                "xtol_rel" = 1e-07,
+                "xtol_rel" = 1e-06,
                 "ftol_rel" = 0.0,
                 "ftol_abs" = 0.0,
                 "xtol_abs" = 0.0 ,
-                "maxeval" = 500)
-  
-  fit <- c(log(rep(10,P_groups)),log(rep(0.01,X_groups)), log(0.16), log(4.5e-05))
+                "maxeval" = 1000) 
+
+  #=======
+  # MANG #
+  #=======
   try(
-    # Run the optimization algorithmm to estimate the parameter values
-    optimizer <- nloptr::nloptr( x0= fit,
-                                 eval_f = obj.func,
-                                 lb	= rep(-15, length(fit)),
-                                 ub = rep(9, length(fit)),
-                                 opts = opts,
-                                 phys_pars = phys_pars, position = position, sample_time = sample_time,
-                                 inits = inits,
-                                 time_points = time_points,
-                                 excretion_time_points =  excretion_time_points),
+    optimizer_MANG <- nloptr::nloptr( x0= fitted_MANG,
+                                      eval_f = obj.func,
+                                      lb	= rep(-15, length(fitted_MANG)),
+                                      ub = rep(9, length(fitted_MANG)),
+                                      opts = opts,
+                                      phys_pars = phys_pars, position = position_MANG, sample_time = sample_time,
+                                      inits = inits,
+                                      time_points = time_points,
+                                      excretion_time_points =  excretion_time_points),
     silent = TRUE
   )
-  
-  # If the otpimizer didn't run, set a small predefined value for the objective function value
-  if(is.null(optimizer)){
-    of_value <- -1000 
+  if(exists("optimizer_MANG")){
+    params_MANG<- exp(optimizer_MANG$solution)
+    value_MANG <- optimizer_MANG$objective
   }else{
-    of_value <- -optimizer$objective
+    params_MANG<- NULL
+    value_MANG <- NULL
+  }
+  
+  #=======
+  # MING #
+  #=======
+  try(
+    optimizer_MING <- nloptr::nloptr( x0= fitted_MING,
+                                      eval_f = obj.func,
+                                      lb	= rep(-15, length(fitted_MING)),
+                                      ub = rep(9, length(fitted_MING)),
+                                      opts = opts,
+                                      phys_pars = phys_pars, position = position_MING, sample_time = sample_time,
+                                      inits = inits,
+                                      time_points = time_points,
+                                      excretion_time_points =  excretion_time_points),
+    silent = TRUE
+  )
+  if(exists("optimizer_MING")){
+    params_MING<- exp(optimizer_MING$solution)
+    value_MING <- optimizer_MING$objective
+  }else{
+    params_MING<- NULL
+    value_MING <- NULL
+  }
+  
+  #=======
+  # FPG #
+  #=======
+  try(
+    optimizer_FPG <- nloptr::nloptr( x0= fitted_FPG,
+                                     eval_f = obj.func,
+                                     lb	= rep(-15, length(fitted_FPG)),
+                                     ub = rep(9, length(fitted_FPG)),
+                                     opts = opts,
+                                     phys_pars = phys_pars, position = position_FPG, sample_time = sample_time,
+                                     inits = inits,
+                                     time_points = time_points,
+                                     excretion_time_points =  excretion_time_points),
+    silent = TRUE
+  )
+  if(exists("optimizer_FPG")){
+    params_FPG<- exp(optimizer_FPG$solution)
+    value_FPG <- optimizer_FPG$objective
+  }else{
+    params_FPG<- NULL
+    value_FPG <- NULL
   }
   
   
-  return(1e02*of_value)
+  #=======
+  # PNG #
+  #=======
+  try(
+    optimizer_PNG <- nloptr::nloptr( x0= fitted_PNG,
+                                     eval_f = obj.func,
+                                     lb	= rep(-15, length(fitted_PNG)),
+                                     ub = rep(9, length(fitted_PNG)),
+                                     opts = opts,
+                                     phys_pars = phys_pars, position = position_PNG, sample_time = sample_time,
+                                     inits = inits,
+                                     time_points = time_points,
+                                     excretion_time_points =  excretion_time_points),
+    silent = TRUE
+  )
+  if(exists("optimizer_PNG")){
+    params_PNG<- exp(optimizer_PNG$solution)
+    value_PNG <- optimizer_PNG$objective
+  }else{
+    params_PNG<- NULL
+    value_PNG <- NULL
+  }
+  
+  
+  #========
+  # SPPCG #
+  #========
+  try(
+    optimizer_SPPCG <- nloptr::nloptr( x0= fitted_SPPCG,
+                                       eval_f = obj.func,
+                                       lb	= rep(-15, length(fitted_SPPCG)),
+                                       ub = rep(9, length(fitted_SPPCG)),
+                                       opts = opts,
+                                       phys_pars = phys_pars, position = position_SPPCG, sample_time = sample_time,
+                                       inits = inits,
+                                       time_points = time_points,
+                                       excretion_time_points =  excretion_time_points),
+    silent = TRUE
+  )
+  if(exists("optimizer_SPPCG")){
+    params_SPPCG<- exp(optimizer_SPPCG$solution)
+    value_SPPCG <- optimizer_SPPCG$objective
+  }else{
+    params_SPPCG<- NULL
+    value_SPPCG <- NULL
+  }
+
+
+# Number of parameter values per estimation scheme
+L_MANG <- length(params_MANG)
+L_MING <- length(params_MING)
+L_FPG <- length(params_FPG)
+L_PNG <- length(params_PNG)
+L_SPPCG <- length(params_SPPCG)
+
+#Create one matrix to hold the value of each parameter for each model per initialization
+N_par <- 18 
+N_model <- 5 #MANG, MING, FPG, PNG,SPPCG
+pmatrix <- matrix(rep(NA, N_par*N_model),nrow = N_model)
+colnames(pmatrix) <- c("P_ht", "P_lu", "P_li", "P_spl","P_ki", "P_git",
+                       "P_bone", "P_rob", "x_ht", "x_lu","x_li", "x_spl",
+                       "x_ki", "x_git", "x_bone","x_rob", "CLE_f",  "CLE_h" )
+rownames(pmatrix) <-  c("MANG",  "MING", "FPG", "PNG","SPPCG")
+
+# Populate the matrix with the values
+pmatrix[1,1:16] <-  unlist(lapply(1:16, function(x) {params_MANG[position_MANG[x]]}))
+pmatrix[1,17:18] <- params_MANG[c(length(params_MANG)-1, length(params_MANG))]
+pmatrix[2,1:16] <-  unlist(lapply(1:16, function(x) {params_MING[position_MING[x]]}))
+pmatrix[2,17:18] <- params_MING[c(length(params_MING)-1, length(params_MING))]
+pmatrix[3,1:16] <-  unlist(lapply(1:16, function(x) {params_FPG[position_FPG[x]]}))
+pmatrix[3,17:18] <- params_FPG[c(length(params_FPG)-1, length(params_FPG))]
+pmatrix[4,1:16] <-  unlist(lapply(1:16, function(x) {params_PNG[position_PNG[x]]}))
+pmatrix[4,17:18] <- params_PNG[c(length(params_PNG)-1, length(params_PNG))]
+pmatrix[5,1:16] <-  unlist(lapply(1:16, function(x) {params_SPPCG[position_SPPCG[x]]}))
+pmatrix[5,17:18] <- params_SPPCG[c(length(params_SPPCG)-1, length(params_SPPCG))]
+
+
+# Create solutions for each model
+parameters_MANG <- c(phys_pars, position_MANG, params_MANG)
+sol_MANG <-  data.frame(deSolve::ode(times = sample_time,  func = ode.func,
+                           y = inits, parms = parameters_MANG, 
+                           method="bdf",rtol = 1e-5, atol = 1e-5))
+
+solution_MANG <- data.frame(sol_MANG$time, sol_MANG$C_li, sol_MANG$C_spl, sol_MANG$C_ki,
+                            sol_MANG$C_lu, sol_MANG$C_ht, sol_MANG$Blood,
+                            sol_MANG$C_bone,  sol_MANG$C_soft, sol_MANG$Feces)
+names(solution_MANG) <- c("Time", "Liver",  "Spleen",
+                         "Kidneys", "Lungs", "Heart","Blood", "Bone",  "Rob","Feces")
+
+
+
+###
+parameters_MING <- c(phys_pars, position_MING, params_MING)
+sol_MING <- data.frame(deSolve::ode(times = sample_time,  func = ode.func,
+                           y = inits, parms = parameters_MING, 
+                           method="bdf",rtol = 1e-5, atol = 1e-5))
+
+solution_MING <- data.frame(sol_MING$time, sol_MING$C_li, sol_MING$C_spl, sol_MING$C_ki,
+                            sol_MING$C_lu, sol_MING$C_ht, sol_MING$Blood,
+                            sol_MING$C_bone,  sol_MING$C_soft, sol_MING$Feces)
+names(solution_MING) <- c("Time", "Liver",  "Spleen",
+                          "Kidneys", "Lungs", "Heart","Blood", "Bone",  "Rob","Feces")
+
+
+###
+parameters_FPG <- c(phys_pars, position_FPG, params_FPG)
+sol_FPG <- data.frame(deSolve::ode(times = sample_time,  func = ode.func,
+                           y = inits, parms = parameters_FPG, 
+                           method="bdf",rtol = 1e-5, atol = 1e-5))
+
+solution_FPG <- data.frame(sol_FPG$time, sol_FPG$C_li, sol_FPG$C_spl, sol_FPG$C_ki,
+                            sol_FPG$C_lu, sol_FPG$C_ht, sol_FPG$Blood,
+                            sol_FPG$C_bone,  sol_FPG$C_soft, sol_FPG$Feces)
+names(solution_FPG) <- c("Time", "Liver",  "Spleen",
+                          "Kidneys", "Lungs", "Heart","Blood", "Bone",  "Rob","Feces")
+
+###
+parameters_PNG <- c(phys_pars, position_PNG, params_PNG)
+sol_PNG <- data.frame(deSolve::ode(times = sample_time,  func = ode.func,
+                           y = inits, parms = parameters_PNG, 
+                           method="bdf",rtol = 1e-5, atol = 1e-5))
+
+solution_PNG <- data.frame(sol_PNG$time, sol_PNG$C_li, sol_PNG$C_spl, sol_PNG$C_ki,
+                            sol_PNG$C_lu, sol_PNG$C_ht, sol_PNG$Blood,
+                            sol_PNG$C_bone,  sol_PNG$C_soft, sol_PNG$Feces )
+names(solution_PNG) <- c("Time", "Liver",  "Spleen",
+                          "Kidneys", "Lungs", "Heart","Blood", "Bone",  "Rob","Feces")
+
+##
+parameters_SPPCG <- c(phys_pars, position_SPPCG, params_SPPCG)
+sol_SPPCG <- data.frame(deSolve::ode(times = sample_time,  func = ode.func,
+                           y = inits, parms = parameters_SPPCG, 
+                           method="bdf",rtol = 1e-5, atol = 1e-5))
+
+solution_SPPCG <- data.frame(sol_SPPCG$time, sol_SPPCG$C_li, sol_SPPCG$C_spl, sol_SPPCG$C_ki,
+                            sol_SPPCG$C_lu, sol_SPPCG$C_ht, sol_SPPCG$Blood,
+                            sol_SPPCG$C_bone,  sol_SPPCG$C_soft, sol_SPPCG$Feces)
+names(solution_SPPCG) <- c("Time", "Liver",  "Spleen",
+                      "Kidneys", "Lungs", "Heart","Blood", "Bone",  "Rob","Feces")
+
+# Create a single data frame to hold the observation data 
+observations <- data.frame( Time =c(1,4,24, 7*24, 28*24), df,  c(NA,NA,excretion))
+names(observations) <- c("Time", "Liver",  "Spleen",
+                         "Kidneys", "Lungs", "Heart","Blood", "Bone",  "Rob","Feces")
+
+###########################################
+#==========================================
+#               Model Metrics             #
+#==========================================
+###########################################
+#
+#Function to estimate the percentage of percent of model-predicted concentrations
+# falling within twofold of the corresponding observed concentrations
+two.fold <- function(predictions, observations, times=NULL){
+  y_obs <- unlist(observations)
+  y_pred <- unlist(predictions)
+  # Total number of observations
+  N<- length(y_obs)
+  # Counter for counting how many observations lie within two fold from the data
+  counter <- 0
+  for ( i in 1:N){
+    if ((y_pred[i]<=2*y_obs[i]) & (y_pred[i]>=0.5*y_obs[i])){
+      counter <- counter + 1
+    }
+  }
+  twofold_percentage <- (counter/N)*100
+  return(twofold_percentage)
+}
+
+#  absolute average fold error
+AAFE <- function(predictions, observations, times=NULL){
+  y_obs <- unlist(observations)
+  y_pred <- unlist(predictions)
+  # Total number of observations
+  N<- length(y_obs)
+  log_ratio <- rep(NA, N) 
+  for ( i in 1:N){
+    log_ratio[i] <- abs(log((y_pred[i]/y_obs[i]), base = 10))
+  }
+  aafe <- 10^(sum(log_ratio)/N) 
+  return(aafe)
+}
+
+#  R-squared between predictions and observations
+r.squared <- function(predictions, observations, times=NULL){
+  y_pred <- unlist(predictions)
+  y_obs <- unlist(observations)
+  
+  lm.model <- lm(y_obs~y_pred)
+  r_squared <- summary(lm.model)$r.squared 
+  
+  return(r_squared)
+}
+
+#  Root-mean-square deviation
+rmsd <- function(predictions, observations, times=NULL){
+  y_obs <- unlist(observations)
+  y_pred <- unlist(predictions)
+  # Total number of observations
+  N<- length(y_obs)
+  summation <- 0
+  for ( i in 1:N){
+    summation <- summation + (y_obs[i]-y_pred[i])^2
+  }
+  rmsd <- sqrt(summation/N)
+  
+  return(rmsd)
 }
 
 
+pbpk.index <- function(observed, predicted, comp.names =NULL){
+  # Check if the user provided the correct input format
+  if (!is.list(observed) || !is.list(predicted)){
+    stop(" The observations and predictions must be lists")
+  }
+  # Check if the user provided equal length lists
+  if (length(observed) != length(predicted)){
+    stop(" The observations and predictions must have the same compartments")
+  }
+  Ncomp <- length(observed) # Number of compartments
+  I <- rep(NA, Ncomp) # Compartment discrepancy index
+  N_obs <- rep(NA, Ncomp) #Number of observations per compartment
+  #loop over the compartments
+  for (i in 1:Ncomp){
+    et <- 0 # errors
+    Et <-0  # experimental
+    N <- length(observed[[i]]) # number of observations for compartment i
+    # Check if observations and predictions have equal length
+    if(N != length(predicted[[i]])){
+      stop(paste0("Compartment ",i," had different length in the observations and predictions"))
+    }
+    N_obs[i] <- N # populate tne N_obs vector
+    for (j in 1:N){
+      # sum of absolute squared errors (error = observed - predicted)
+      et <- et + (abs(observed[[i]][j] - predicted[[i]][j]))^2
+      # Sum of squared observed values
+      Et <- Et + (observed[[i]][j])^2
+    }
+    # root mean square of the absolute error
+    RMet2 <-sqrt(et/N)
+    # root mean of the square of observed values
+    RMEt2 <- sqrt(Et/N)
+    
+    I[i] <- RMet2/RMEt2   
+  }
+  # Total number of observations
+  Ntot <- sum(N_obs)
+  # Initialise the consolidated discrepancy index
+  Ic <-0
+  for (i in 1:Ncomp){
+    Ic <- Ic +  I[i]* N_obs[i]/Ntot
+  }
+  # Name the list of compartment discrepancy indices
+  if ( !is.null(comp.names)){
+    names(I) <- comp.names
+  }else if (!is.null(names(observed))){
+    names(I) <- names(observed)
+  } else if (!is.null(names(predicted)) && is.null(comp.names) ){
+    names(I) <- names(predicted)
+  }
+  return(Ic)
+  #return(list(Total_index = Ic, Compartment_index= I))
+}
 
-##############################
-#=============================
-#  ***  Genetic algorithm  ***
-#=============================
-##############################
+# Function for estimating all metrics
+metric.print <- function(predictions, observations ){
 
-#=======================================================================
-#                    Available tuning parameters                       
-#                        (real encoding)                             
-#=======================================================================
+  concentrations <- predictions[predictions$Time %in% observations$Time, ]
+  observed <- list()
+  predicted <- list()
+  
+  for (i in 2:(length(concentrations))) {
+    if(names(concentrations)[i] == "Feces"){
+      observed[[i-1]] <- observations[3:5,i]
+      predicted[[i-1]] <- concentrations[3:5,i]
+    }else{
+      observed[[i-1]] <- observations[,i]
+      predicted[[i-1]] <- concentrations[,i]
+    }
+  }
+  
+  print(paste0("pbpk index of model is: ", pbpk.index(observed, predicted)))
+  print(paste0("R-squared of model is: ", r.squared(observed, predicted)))
+  print(paste0("AAFE  of model is: ", AAFE(observed, predicted)))
+  print(paste0("RMSD of model is ", rmsd(observed, predicted)))
+  print(paste0("2-fold % of model is: ", two.fold(observed, predicted)))
+  print(paste0("PBKOF of model is: ", PBKOF(observed, predicted)))
+  
+}
 
-#                            /Selection/          
-# gareal_lrSelection:Linear-rank selection
-# gareal_nlrSelection:Nonlinear-rank selection.
-# gareal_rwSelection:Proportional (roulette wheel) selection.
-# gareal_tourSelection: (Unbiased) tournament selection
-# gareal_lsSelection: Fitness proportional selection with fittness linear scaling.
-# gareal_sigmaSelection: Fitness proportional selection with Goldberg's sigma truncation scaling
-#
-#                            /Crossover/                               
-# gareal_spCrossover: Single-point crossover
-# gareal_uCrossover: Uniform crossover
-# gareal_waCrossover: Whole arithmetic crossover.
-# gareal_laCrossover: Local arithmetic crossover.
-# gareal_blxCrossover: Blend crossover.
-#
-#                           /Mutation/
-# gareal_raMutation: Uniform random mutation
-# gareal_nraMutation: Nonuniform random mutation.
-# gareal_rsMutation: Random mutation around the solution.
-setwd("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm/Kreyling/NLOPTR")
-start <- Sys.time()
-GA_results <- GA::ga(type = "real", fitness = ga_fitness, 
-                     lower = rep(1,16), upper = rep(3.999999,16),  
-                     population = "gareal_Population",
-                     selection = "gareal_lsSelection",
-                     crossover = "gareal_laCrossover", 
-                     mutation = "gareal_raMutation",
-                     popSize =  60, #the population size.
-                     pcrossover = 0.85, #the probability of crossover between pairs of chromosomes.
-                     pmutation = 0.4, #the probability of mutation in a parent chromosome
-                     elitism = 5, #the number of best fitness individuals to survive at each generation. 
-                     maxiter = 200, #the maximum number of iterations to run before the GA search is halted.
-                     run = 50, # the number of consecutive generations without any improvement
-                     #in the best fitness value before the GA is stopped.
-                     keepBest = TRUE, # best solutions at each iteration should be saved in a slot called bestSol.
-                     parallel = (parallel::detectCores()),
-                     monitor =plot,
-                     seed = 1234)
-stop <- Sys.time()
-print(paste0("Time ellapsed was ", stop-start))
-save.image(file = "PNG_nloptr.RData")
+metric.print(solution_MANG, observations)
+metric.print(solution_MING, observations)
+metric.print(solution_FPG, observations)
+metric.print(solution_PNG, observations)
+metric.print(solution_SPPCG, observations)

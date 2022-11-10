@@ -30,7 +30,7 @@ ga_fitness <- function(chromosome)
     rownames(fractions) <- all_comps
     
     #Tissue weight fraction 
-    Tissue_fractions <- fractions[,1]/100 # % of BW. Na values refers to the volume of the rest organs(RoB)
+    Tissue_fractions <- fractions[,1]/100 # % of BW. NA values refers to the volume of the rest organs(RoB)
     Tissue_fractions[10] <- fr_ad/100
     #Regional blood flow fraction
     Regional_flow_fractions <- fractions[,2]/100 # % of total cardiac output
@@ -101,8 +101,7 @@ ga_fitness <- function(chromosome)
     
     Vven=0.64*Total_Blood
     Vart=0.15*Total_Blood
-    Wm_ven=0.01*Vven
-    Wm_art=0.01*Vart
+
     
     return(c(
       "Q_total"=Q_total, "V_blood"=Total_Blood, "V_ven"=Vven, "V_art"=Vart,
@@ -186,7 +185,7 @@ ga_fitness <- function(chromosome)
       CLE_u <- 0
       
       
-      # Concentrations (mg of NPs)/(g of wet tissue)
+      # Concentrations (micro grams of NPs)/(g tissue)
       C_ht <- M_ht/w_ht
       C_cap_ht <- M_cap_ht/V_cap_ht
       C_lu <- M_lu/w_lu
@@ -536,7 +535,7 @@ ga_fitness <- function(chromosome)
 
 #=======================================================================
 #                    Available tuning parameters                       
-#                        (binary encoding)                             
+#                            (real encoding)            
 #=======================================================================
 
 #                            /Selection/          
