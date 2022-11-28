@@ -44,15 +44,15 @@ ga_fitness <- function(chromosome)
     
     # The following values were calculated by dividing the %ID/ g tissue with the %ID w/o free 48 from Table 2 of Kreyling et al. (2017)
     # Thus, they represent the average mass, in grams, of the respective tissues in each time group.
-    liver_expw <- mean(8.57, 8.92, 9.30, 8.61, 9.20)
-    spleen_expw <- mean(0.93, 0.75, 0.97, 0.68, 0.71)
-    kidneys_expw <- mean(2.27, 2.36, 2.44, 2.11, 2.26)
-    lungs_expw <- mean(1.87, 1.60, 1.80, 1.48, 1.31)
-    heart_expw <- mean(0.89, 1.00, 1.00, 1.00, 0.88)
-    blood_expw <- mean(16.52, 17.45, 15.33, 18.50, 18.00)
-    carcass_expw <- mean(206.00, 203.33, 184.00, 202.00, 203.75)
-    skeleton_expw <- mean(26.15, 27.50, 25.56, 25.79, 25.26)
-    soft_tissues <- mean(228.57, 253.85, 214.29, 225.93, 231.04)
+    liver_expw <- mean(c(8.57, 8.92, 9.30, 8.61, 9.20))
+    spleen_expw <- mean(c(0.93, 0.75, 0.97, 0.68, 0.71))
+    kidneys_expw <- mean(c(2.27, 2.36, 2.44, 2.11, 2.26))
+    lungs_expw <- mean(c(1.87, 1.60, 1.80, 1.48, 1.31))
+    heart_expw <- mean(c(0.89, 1.00, 1.00, 1.00, 0.88))
+    blood_expw <- mean(c(16.52, 17.45, 15.33, 18.50, 18.00))
+    carcass_expw <- mean(c(206.00, 203.33, 184.00, 202.00, 203.75))
+    skeleton_expw <- mean(c(26.15, 27.50, 25.56, 25.79, 25.26))
+    soft_tissues <- mean(c(228.57, 253.85, 214.29, 225.93, 231.04))
     
     ### Calculation of tissue weights  
     W_tis[2] <- heart_expw

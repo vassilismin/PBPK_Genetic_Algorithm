@@ -1,5 +1,5 @@
 # Set the directory from where all relevant data all loaded
-setwd("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm/Kreyling/NLOPTR")
+setwd("C:/Users/ptsir/Documents/GitHub/PBPK_Genetic_Algorithm/Kreyling/NLOPTR")
 
 # Load results from genetic algorithm grouping
 load("FPG_nloptr.RData")
@@ -53,15 +53,16 @@ rm(list=ls()[! ls() %in% c("GA_results_FPG", "GA_results_PNG","GA_results_SPPCG"
     
     # The following values were calculated by dividing the %ID/ g tissue with the %ID w/o free 48 from Table 2 of Kreyling et al. (2017)
     # Thus, they represent the average mass, in grams, of the respective tissues in each time group.
-    liver_expw <- mean(8.57, 8.92, 9.30, 8.61, 9.20)
-    spleen_expw <- mean(0.93, 0.75, 0.97, 0.68, 0.71)
-    kidneys_expw <- mean(2.27, 2.36, 2.44, 2.11, 2.26)
-    lungs_expw <- mean(1.87, 1.60, 1.80, 1.48, 1.31)
-    heart_expw <- mean(0.89, 1.00, 1.00, 1.00, 0.88)
-    blood_expw <- mean(16.52, 17.45, 15.33, 18.50, 18.00)
-    carcass_expw <- mean(206.00, 203.33, 184.00, 202.00, 203.75)
-    skeleton_expw <- mean(26.15, 27.50, 25.56, 25.79, 25.26)
-    soft_tissues <- mean(228.57, 253.85, 214.29, 225.93, 231.04)
+    liver_expw <- mean(c(8.57, 8.92, 9.30, 8.61, 9.20))
+    spleen_expw <- mean(c(0.93, 0.75, 0.97, 0.68, 0.71))
+    kidneys_expw <- mean(c(2.27, 2.36, 2.44, 2.11, 2.26))
+    lungs_expw <- mean(c(1.87, 1.60, 1.80, 1.48, 1.31))
+    heart_expw <- mean(c(0.89, 1.00, 1.00, 1.00, 0.88))
+    blood_expw <- mean(c(16.52, 17.45, 15.33, 18.50, 18.00))
+    carcass_expw <- mean(c(206.00, 203.33, 184.00, 202.00, 203.75))
+    skeleton_expw <- mean(c(26.15, 27.50, 25.56, 25.79, 25.26))
+    soft_tissues <- mean(c(228.57, 253.85, 214.29, 225.93, 231.04))
+    
     
     ### Calculation of tissue weights  
     W_tis[2] <- heart_expw
@@ -747,6 +748,7 @@ pmatrix[4,17:18] <- params_PNG[c(length(params_PNG)-1, length(params_PNG))]
 pmatrix[5,1:16] <-  unlist(lapply(1:16, function(x) {params_SPPCG[position_SPPCG[x]]}))
 pmatrix[5,17:18] <- params_SPPCG[c(length(params_SPPCG)-1, length(params_SPPCG))]
 
+View(t(signif(pmatrix,3)))
 
 # Create solutions for each model
 parameters_MANG <- c(phys_pars, position_MANG, params_MANG)
@@ -966,3 +968,65 @@ metric.print(solution_MING, observations)
 metric.print(solution_FPG, observations)
 metric.print(solution_PNG, observations)
 metric.print(solution_SPPCG, observations)
+
+
+#####################
+#    PLOTS  ########
+######################
+
+library(ggplot2)
+
+# Defining the linetype and colour of each curve
+ltp <- c("MANG" = "twodash", "FPG" = "solid", "PNG" = "dotted","SPPCG" = "dashed"
+         ,"MING" = "dotdash" )
+cls <-  c("MANG" = "#56B4E9",  "FPG" ="#000000", "PNG" = "#009E73", "SPPCG" ="#CC79A7",
+          "Observations" = "#D55E00"
+          , "MING" = "#E69F00")
+
+
+create.plots <- function(compartment){  
+  excreta <- compartment %in% c("Feces", "Urine")
+  ggplot(data = solution_MANG)+
+             geom_line( aes_string(x= "Time", y= rlang::expr(!!compartment), 
+                                   color = '"MANG"',linetype = '"MANG"'),  size=1.5,alpha = 0.7) +
+             geom_line(data=solution_FPG, aes_string(x= "Time", y= rlang::expr(!!compartment),
+                                                      color = '"FPG"',linetype ='"FPG"'), size=1.5,alpha = 0.7) +
+             geom_line(data=solution_MING, aes_string(x= "Time", y= rlang::expr(!!compartment),
+                                                      color = '"MING"',linetype ='"MING"'), size=1.5,alpha = 0.7) +
+             geom_line(data=solution_PNG, aes_string(x= "Time", y= rlang::expr(!!compartment),
+                                                      color =  '"PNG"',linetype =  '"PNG"'), size=1.5,alpha = 0.7) +
+             geom_line(data=solution_SPPCG, aes_string(x= "Time", y= rlang::expr(!!compartment), 
+                                                      color = '"SPPCG"',linetype ='"SPPCG"'), size=1.5,alpha = 0.7) +
+             geom_point(data=observations, aes_string(x="Time", y= rlang::expr(!!compartment), 
+                                                      color='"Observations"'), size=4)+
+             labs(title = rlang::expr(!!compartment), 
+                  y = ifelse(excreta,expression("TiO2 (" * mu * "g)"),expression("TiO2 (" * mu* "g/g tissue)" )),
+                  x = "Time (hours)")+
+             theme(plot.title = element_text(hjust = 0.5))+
+             {if(compartment %in% c("Blood", "Kidneys", "Bone", "Rob", "Lungs", "Heart" ))scale_y_continuous(trans='log10')}+
+             scale_color_manual("", values=cls)+
+             scale_linetype_manual("Models", values=ltp) +
+             theme(legend.key.size = unit(1.5, 'cm'),  
+                   legend.title = element_text(size=14),
+                   axis.title=element_text(size=14),
+                   legend.text = element_text(size=14))
+           
+         }
+plots <- lapply(names(observations)[2:length(observations)],create.plots)
+p1 <-  plots[[1]]
+p2 <-  plots[[2]]
+p3 <-  plots[[3]]
+p4 <-  plots[[4]]
+p5 <-  plots[[5]]
+p6 <-  plots[[6]]
+p7 <-  plots[[7]]
+p8 <-  plots[[8]]
+p9 <-  plots[[9]]
+#gridExtra::grid.arrange(p1,p2,p3,p4,p5,p6,p7,p8, p9,p10, nrow = 4)
+#gridExtra::grid.arrange(p5,p6,p7,p8,nrow = 2)
+#gridExtra::grid.arrange(p9,p10,nrow = 2)
+
+ggpubr::ggarrange(p1, p2, p3, p4,p5,p6,p7,p8, p9, ncol=3, nrow=4, 
+         common.legend = TRUE, legend="right")
+
+#save.image(file = "Benchmarking.RData")
