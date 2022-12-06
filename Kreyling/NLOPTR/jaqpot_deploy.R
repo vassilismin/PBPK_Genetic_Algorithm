@@ -1,5 +1,5 @@
 library(deSolve)
-setwd("C:/Users/ptsir/Documents/GitHub/PBPK_Genetic_Algorithm")
+setwd("C:/Users/ptsir/Documents/GitHub/PBPK_Genetic_Algorithm/Kreyling/NLOPTR")
 
 
 #####################################
@@ -69,8 +69,7 @@ create.params <- function(user_input){
   Regional_flow_fractions <- fractions[,2]/100 # % of total cardiac output
   #Capillary volume fractions (fractions of tissue volume)
   Capillary_fractions <- fractions[,3] # of tissue volume
-  #Macrophage content as fraction tissue volume for each tissue/organ
-  Macrophage_fractions <- fractions[,4] 
+
   
   W_tis <- rep(0,length(comp_names))
   V_tis <- rep(0,length(comp_names))
@@ -78,18 +77,33 @@ create.params <- function(user_input){
   W_macro <- rep(0,length(comp_names))  #one more for blood compartment
   Q <- rep(0,length(comp_names))
   
+  # The following values were calculated by dividing the %ID/ g tissue with the %ID w/o free 48 from Table 2 of Kreyling et al. (2017)
+  # Thus, they represent the average mass, in grams, of the respective tissues in each time group.
+  liver_expw <- mean(c(8.57, 8.92, 9.30, 8.61, 9.20))
+  spleen_expw <- mean(c(0.93, 0.75, 0.97, 0.68, 0.71))
+  kidneys_expw <- mean(c(2.27, 2.36, 2.44, 2.11, 2.26))
+  lungs_expw <- mean(c(1.87, 1.60, 1.80, 1.48, 1.31))
+  heart_expw <- mean(c(0.89, 1.00, 1.00, 1.00, 0.88))
+  blood_expw <- mean(c(16.52, 17.45, 15.33, 18.50, 18.00))
+  carcass_expw <- mean(c(206.00, 203.33, 184.00, 202.00, 203.75))
+  skeleton_expw <- mean(c(26.15, 27.50, 25.56, 25.79, 25.26))
+  soft_tissues <- mean(c(228.57, 253.85, 214.29, 225.93, 231.04))
+  
+  ### Calculation of tissue weights  
+  W_tis[2] <- heart_expw
+  W_tis[3] <- kidneys_expw
+  W_tis[5] <- spleen_expw
+  W_tis[6] <- lungs_expw
+  W_tis[7] <- liver_expw
+  W_tis[9] <- skeleton_expw
+  W_tis[13] <- Tissue_fractions[13]*mass
+  
   
   for (i in 1:length(comp_names)) {
     control <- comp_names[i]
     
-    Tissue_fractions[i] <- ifelse(is.na(control), NA, Tissue_fractions[i])
     Regional_flow_fractions[i] <- ifelse(is.na(control), NA, Regional_flow_fractions[i])
     Capillary_fractions[i] <- ifelse(is.na(control), NA, Capillary_fractions[i])
-    Macrophage_fractions[i] <- ifelse(is.na(control), NA, Macrophage_fractions[i])
-    
-    ### Calculation of tissue weights  
-    W_tis[i] <- mass*Tissue_fractions[i]
-    
     
     ###Calculation of tissue volumes
     
@@ -104,23 +118,17 @@ create.params <- function(user_input){
     ###Calculation of capillary volumes
     V_cap[i] <- V_tis[i]*Capillary_fractions[i]
     
-    ###Volume of macrophage contents
-    W_macro[i] <- W_tis[i]*Macrophage_fractions[i]
-    
     ###Calculation of regional blood flows
     Q[i] <- Q_total*Regional_flow_fractions[i]
   }
-  
-  #Vm_ven <- 0.01*Vven #macrophage content in veins
-  #Vm_art <- 0.01*Vart #0.02*Vart #macrophage content in arteries
+ 
   
   ### Calculations for "Soft tissue" compartment
-  W_tis[1] <- mass - sum(W_tis[2:length(W_tis)], na.rm = TRUE)
+  W_tis[1] <- mass - sum(W_tis[2:length(W_tis)], na.rm = TRUE)-Total_Blood
   V_tis[1] <- W_tis[1]/d_adipose     
   Q[1] <- Q_total - sum(Q[2:length(Q)],na.rm = TRUE) + Q[6]
   V_cap[1] <- V_tis[1]*Capillary_fractions[1] #Total_Blood - Vven - Vart - sum(V_cap[2:length(V_cap)], na.rm = TRUE)
-  W_macro[1] <- W_tis[1]*Macrophage_fractions[1]
-  
+
   parameters <- matrix(c(W_tis[],V_tis[],V_cap[],Q[],W_macro[]), ncol = 5)
   colnames(parameters) <- c("W_tis", "V_tis", "V_cap", "Q", "W_macro")
   rownames(parameters) <- all_comps
@@ -140,7 +148,7 @@ create.params <- function(user_input){
     "V_cap_rob"=parameters[1,3], "V_cap_ht"=parameters[2,3], "V_cap_ki"=parameters[3,3], "V_cap_spl"=parameters[5,3], "V_cap_lu"=parameters[6,3], "V_cap_li"=parameters[7,3], "V_cap_bone"=parameters[9,3], "V_cap_git"=parameters[13,3],
     
     "Q_rob"=parameters[1,4], "Q_ht"=parameters[2,4], "Q_ki"=parameters[3,4], "Q_spl"=parameters[5,4], "Q_lu"=parameters[6,4], "Q_li"=parameters[7,4], "Q_bone"=parameters[9,4], "Q_git"=parameters[13,4],
-    "dose" = dose, "administration" = administration
+    "dose" = dose, "administration" = administration_time
     
   ))
   })
@@ -214,10 +222,9 @@ custom.func <- function(){
 ode.func <- function(time, Initial.values, Parameters, custom.func){
   with( as.list(c(Initial.values, Parameters)),{
     
-    position <- c(1,2,3,4,5,6,7,3,8,9,10,11,12,13,8,9)
-    fit_pars <- c(2.716388e+01, 2.405569e+02, 1.780652e+03, 3.620181e+03, 4.274535e+01, 3.235193e+01,
-                  1.635487e+02, 2.342091e-02, 1.200756e-03, 8.026227e-02, 2.452210e-01, 1.886134e-02,
-                  6.860763e-01, 2.548753e-01, 6.612672e+01, 3.668949e-04)
+    position <- c(1,2,3,4,3,1,5,1,6,7,6,8,7,6,9,10)
+    fit_pars <-exp(c(-0.133735, 2.122784, 7.684528, 6.6723, 1.761389, -2.18345, 
+                     -9.489032, -2.726946, -6.120888, -8.849567, -2.124971, -9.946329)) 
 
     P_ht <- fit_pars[position[1]]
     P_lu <- fit_pars[position[2]]
@@ -237,11 +244,12 @@ ode.func <- function(time, Initial.values, Parameters, custom.func){
     x_bone <- fit_pars[position[15]]
     x_rob <- fit_pars[position[16]]
     
-    CLE_f <- fit_pars[length(fit_pars)-2]
-    CLE_u <- fit_pars[length(fit_pars)-1]
+    CLE_f <- fit_pars[length(fit_pars)-1]
     CLE_h <- fit_pars[length(fit_pars)]
+    CLE_u <- 0
     
-    # Concentrations (mg of NPs)/(g of wet tissue)
+    
+    # Concentrations (micro grams of NPs)/(g tissue)
     C_ht <- M_ht/w_ht
     C_cap_ht <- M_cap_ht/V_cap_ht
     C_lu <- M_lu/w_lu
@@ -272,8 +280,8 @@ ode.func <- function(time, Initial.values, Parameters, custom.func){
     
     # Liver 
     dM_cap_li <- Q_li*(C_art - C_cap_li) + Q_spl*(C_cap_spl - C_cap_li) + Q_git*(C_cap_git - C_cap_li) -
-      x_li*(Q_li)*(C_cap_li - C_li/P_li)
-    dM_li <- x_li*Q_li*(C_cap_li - C_li/P_li) - CLE_h*M_li
+      x_li*(Q_li+Q_git+Q_spl)*(C_cap_li - C_li/P_li)
+    dM_li <- x_li*(Q_li+Q_git+Q_spl)*(C_cap_li - C_li/P_li) - CLE_h*M_li
     
     # Spleen
     dM_cap_spl <- Q_spl*(C_art - C_cap_spl) - x_spl*Q_spl*(C_cap_spl - C_spl/P_spl)
@@ -341,8 +349,8 @@ ode.func <- function(time, Initial.values, Parameters, custom.func){
 ####################
 mass <- 250 # g  
 dose <-2.5 # mg TiO2
-administration = 0.01
-user_input <-list("dose" = dose, "mass" = mass, "administration" = administration)
+administration_time = 0.01
+user_input <-list("dose" = dose, "mass" = mass, "administration_time" = administration_time)
 predicted.feats <- c( "Blood",  "Heart", "Lungs", "Liver", "Spleen", "Kidneys", "Git", "Bone", "RoB",
                       "Feces", "Urine")
 
@@ -355,7 +363,7 @@ sample_time <- seq(0, 30*24, 1)
 solution <- ode(times = sample_time,  func = ode.func, y = inits, parms = params, 
                 custom.func = custom.func, method="lsodes",  events = events)
 
-#jaqpotr::login.cred()
-#jaqpotr::deploy.pbpk(user.input = user_input,out.vars = predicted.feats, create.params = create.params,
-#                     create.inits = create.inits, create.events = create.events, custom.func = custom.func,
-#                      ode.fun = ode.fun) 
+jaqpotr::login.cred()
+jaqpotr::deploy.pbpk(user.input = user_input,out.vars = predicted.feats, create.params = create.params,
+                     create.inits = create.inits, create.events = create.events, custom.func = custom.func,
+                      ode.fun = ode.fun) 
