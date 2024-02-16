@@ -1,6 +1,6 @@
 library(deSolve)
 
-setwd("C:/Users/user/Documents/GitHub/PBPK_Genetic_Algorithm/Kreyling/NLOPTR")
+setwd("C:/Users/ptsir/Documents/GitHub/PBPK_Genetic_Algorithm/Kreyling/NLOPTR")
 
 #####################################
 ### Function to create Parameters ###
@@ -709,7 +709,7 @@ solution_pbpk <- data.frame(solution_pbpk_pre$time, solution_pbpk_pre$C_li, solu
 names(solution_pbpk) <- c("Time",  "Liver",  "Spleen","Kidneys","Lungs","Heart","Blood","Bone", "RoB", "Feces")
 
 
-# Prepare results with PBKOF metric
+# Prepare results with SODI metric
 params_new <- c(phys_pars, position, max_params_new)
 solution_new_pre <- data.frame(ode(times = sample_time,  func = ode.func,
                                  y = inits, parms = params_new, 
@@ -754,8 +754,8 @@ names(observations) <- c("Time",  "Liver",  "Spleen","Kidneys","Lungs","Heart","
 library(ggplot2)
 
 # Defining the linetype and colour of each curve
-ltp <- c("R-squared" = "twodash","RMSD" ="dotted", "PBKOF" = "solid", "AAFE" = "longdash","PBPK index" = "dashed")
-cls <-  c("R-squared" = "#56B4E9", "RMSD" = "#E69F00", "PBKOF" ="#000000", "AAFE" = "#009E73", "PBPK index" ="#CC79A7",
+ltp <- c("R-squared" = "twodash","RMSD" ="dotted", "SODI" = "solid", "AAFE" = "longdash","PBPK index" = "dashed")
+cls <-  c("R-squared" = "#56B4E9", "RMSD" = "#E69F00", "SODI" ="#000000", "AAFE" = "#009E73", "PBPK index" ="#CC79A7",
           "Observations" = "#D55E00")
 
 
@@ -767,7 +767,7 @@ create.plots <- function(compartment){
     geom_line(data=solution_pbpk, aes_string(x= "Time", y= rlang::expr(!!compartment),
                                              color = '"PBPK index"',linetype ='"PBPK index"'), size=1.5,alpha = 0.9) +
     geom_line(data=solution_new, aes_string(x= "Time", y= rlang::expr(!!compartment),
-                                            color =  '"PBKOF"',linetype =  '"PBKOF"'), size=1.5,alpha = 0.7) +
+                                            color =  '"SODI"',linetype =  '"SODI"'), size=1.5,alpha = 0.7) +
     geom_line(data=solution_aafe, aes_string(x= "Time", y= rlang::expr(!!compartment), 
                                              color = '"AAFE"',linetype ='"AAFE"'), size=1.5,alpha = 0.7) +
     geom_line(data=solution_rmsd, aes_string(x= "Time", y= rlang::expr(!!compartment), 
@@ -778,13 +778,17 @@ create.plots <- function(compartment){
          y = ifelse(excreta,"TiO2 (mg)","TiO2 (mg/g tissue)" ),
          x = "Time (hours)")+
     theme(plot.title = element_text(hjust = 0.5))+
+    
     {if(compartment %in% c("Blood", "Kidneys", "Heart", "Bone", "Lungs" ))scale_y_continuous(trans='log10')}+
     scale_color_manual("", values=cls)+
     scale_linetype_manual("Metrics", values=ltp) +
-    theme(legend.key.size = unit(1.5, 'cm'),  
+    theme(  legend.justification = "top" ,
+      legend.key.size = unit(1.5, 'cm'),  
           legend.title = element_text(size=14),
           legend.text = element_text(size=14),
-          axis.text = element_text(size = 14))
+          axis.text = element_text(size = 14))+
+    theme(plot.margin=grid::unit(c(0.25,0.25,0.25,0.25), "cm"))
+  
   
 }
 
@@ -801,8 +805,14 @@ p9 <-  plots[[9]]
 #gridExtra::grid.arrange(p1,p2,p3,p4,p5,p6,p7,p8, p9,p10, nrow = 4)
 #gridExtra::grid.arrange(p5,p6,p7,p8,nrow = 2)
 #gridExtra::grid.arrange(p9,p10,nrow = 2)
+final_plot<- ggpubr::ggarrange(p1, p2, p3, p4,p5,p6,p7,p8, p9, ncol=3, nrow=4, 
+                        common.legend = TRUE, legend="right")+
+        theme(plot.margin=grid::unit(c(0.25,0.25,0.25,0.25), "cm"))
 
-ggpubr::ggarrange(p1, p2, p3, p4,p5,p6,p7,p8, p9, ncol=3, nrow=4, 
-                  common.legend = TRUE, legend="right")
-
+ggsave("metric_selection_low.png",plot = final_plot,
+       device='png', dpi=320,
+       width = 15,
+       height = 12,
+       units = "in")
+dev.off()
 

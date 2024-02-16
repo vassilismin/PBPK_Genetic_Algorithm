@@ -1006,10 +1006,12 @@ create.plots <- function(compartment){
              {if(compartment %in% c("Blood", "Kidneys", "Bone", "Rob", "Lungs", "Heart" ))scale_y_continuous(trans='log10')}+
              scale_color_manual("", values=cls)+
              scale_linetype_manual("Models", values=ltp) +
-             theme(legend.key.size = unit(1.5, 'cm'),  
+             theme(legend.justification = "top" ,
+               legend.key.size = unit(1.5, 'cm'),  
                    legend.title = element_text(size=14),
                    axis.title=element_text(size=14),
-                   legend.text = element_text(size=14))
+                   legend.text = element_text(size=14))+
+    theme(plot.margin=grid::unit(c(0.25,0.25,0.25,0.25), "cm"))
            
          }
 plots <- lapply(names(observations)[2:length(observations)],create.plots)
@@ -1026,7 +1028,16 @@ p9 <-  plots[[9]]
 #gridExtra::grid.arrange(p5,p6,p7,p8,nrow = 2)
 #gridExtra::grid.arrange(p9,p10,nrow = 2)
 
-ggpubr::ggarrange(p1, p2, p3, p4,p5,p6,p7,p8, p9, ncol=3, nrow=4, 
-         common.legend = TRUE, legend="right")
+
+final_plot<- ggpubr::ggarrange(p1, p2, p3, p4,p5,p6,p7,p8, p9, ncol=3, nrow=4, 
+                               common.legend = TRUE, legend="right")+
+  theme(plot.margin=grid::unit(c(0.25,0.25,0.25,0.25), "cm"))
+
+ggsave("model_benchmark_low.png",plot = final_plot,
+       device='png', dpi=320,
+       width = 15,
+       height = 12,
+       units = "in")
+dev.off()
 
 #save.image(file = "Benchmarking.RData")
